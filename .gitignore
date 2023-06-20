@@ -2,3 +2,4 @@ build/
 */build/
 sdkconfig
 sdkconfig*
+wasm_file.h

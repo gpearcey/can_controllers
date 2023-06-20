@@ -41,7 +41,10 @@ endif()
 
 
 # Now include the ESP project details
+set (COMPONENTS ${IDF_TARGET} main freertos esptool_py wamr)
+
 set(EXTRA_COMPONENT_DIRS ${CMAKE_CURRENT_LIST_DIR}/external)
+list(APPEND EXTRA_COMPONENT_DIRS "$ENV{WAMR_PATH}/build-scripts/esp-idf")
 include(${IDF_PATH}/tools/cmake/project.cmake)
 
 project(NMEA_CAN_ctrl)
