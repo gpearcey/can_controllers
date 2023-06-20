@@ -280,6 +280,7 @@ extern "C" int app_main(void)
         goto err_out;
     }
 
+    //wasm task must run on a pthread - just a wrapper on FreeRTOS
     pthread_t t;
     int res;
 
