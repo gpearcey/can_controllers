@@ -52,6 +52,8 @@ static bool ShowSentMessages=false;
 static bool Sending=false;
 static tN2kScheduler NextStatsTime;
 
+char* native_to_app_msg_buf = NULL;
+
 void SendN2kMsg(const tN2kMsg &N2kMsg) {
   if ( NMEA2000.SendMsg(N2kMsg) ) {
     N2kMsgSentCount++;
@@ -126,7 +128,7 @@ void N2K_task(void *pvParameters)
     NMEA2000.SetForwardType(tNMEA2000::fwdt_Text);   // Show in clear text
     // NMEA2000.EnableForward(false);                 // Disable all msg forwarding to USB (=Serial)
 
-    //NMEA2000.SetMsgHandler(HandleNMEA2000Msg); //optional message handler will do somthing once desired message is received
+    NMEA2000.SetMsgHandler(HandleNMEA2000Msg); //optional message handler will do somthing once desired message is received
 
     //do I need to do anything for group functions?
 
@@ -136,7 +138,6 @@ void N2K_task(void *pvParameters)
     // Here we could tell, which PGNs we transmit and receive
     //NMEA2000.ExtendTransmitMessages(TransmitMessages, 0);
     //NMEA2000.ExtendReceiveMessages(ReceiveMessages, 0);
-
     // Define OnOpen call back. This will be called, when CAN is open and system starts address claiming.
     NMEA2000.SetOnOpen(OnN2kOpen);
     NMEA2000.Open();
@@ -155,6 +156,62 @@ tN2kSendMessage N2kSendMessages[]={
 
 size_t nN2kSendMessages=sizeof(N2kSendMessages)/sizeof(tN2kSendMessage);
 
+//*****************************************************************************
+//NMEA 2000 message handler
+void HandleNMEA2000Msg(const tN2kMsg &N2kMsg) {
+  
+  uint32_t buffer = wasm_runtime_module_malloc(module_inst, 100, &buf);
+  attr_container* container = create_msg_container();
+  attr_container_serialize(buf , container);
+}
+
+/*****************************************************************************************
+ * 
+*/
+static attr_container* create_msg_container(void *msg){
+
+  attr_container_t *attr_obj = attr_container_create("native to app msg");
+  if (attr_obj) {
+      // set controller number
+      bool ret = attr_container_set_uint8(&attr_obj, "controller_number", 0);
+      if (!ret) {
+          attr_container_destroy(attr_obj);
+          return NULL;
+      }
+
+      // set priority
+      bool ret = attr_container_set_uint8(&attr_obj, "priority", 5);
+      if (!ret) {
+          attr_container_destroy(attr_obj);
+          return NULL;
+      }
+
+      // set source
+      bool ret = attr_container_set_uint8(&attr_obj, "source", 3);
+      if (!ret) {
+          attr_container_destroy(attr_obj);
+          return NULL;
+      }
+
+      // set PGN
+      bool ret = attr_container_set_uint32(&attr_obj, "PGN", 125750);
+      if (!ret) {
+          attr_container_destroy(attr_obj);
+          return NULL;
+      }
+      //temporary test data
+      uint8_t data[8] = {1,4,3,6,26,5,4,8};
+      // set data
+      bool ret = attr_container_set_bytearray(&attr_obj, "data", data, 8);
+      if (!ret) {
+          attr_container_destroy(attr_obj);
+          return NULL;
+      }
+      return attr_obj;
+  }
+  
+  return NULL;
+}
 /**************************************************************************************************
  * Wasm task
 */
