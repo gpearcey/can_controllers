@@ -100,9 +100,9 @@ bool ReceiveMsgFromApp(uint8_t controller_number,uint32_t PGN, uint8_t source, u
 
   if (controller_number == 0){
     ctrl0_q.push(msg);
+    ESP_LOGD(TAG, "added message to controller 0 send queue with PGN %u \n",msg.PGN);
     return true;
   }
-
   return false;
 }
 
@@ -255,6 +255,7 @@ void HandleNMEA2000Msg(const tN2kMsg &N2kMsg) {
   }
 
   received_msgs_q.push(msg);
+  ESP_LOGI(TAG, "added msg to received queue");
 }
 
 /*****************************************************************************************
@@ -357,7 +358,7 @@ void * iwasm_main(void *arg)
         {
             "ReceiveMsgFromApp", // the name of WASM function name
             reinterpret_cast<void*>(ReceiveMsgFromApp),    // the native function pointer
-            "(i)i",  // the function prototype signature, avoid to use i32
+            "(u8)i",  // the function prototype signature, avoid to use i32
             NULL        // attachment is NULL
         }
     };
