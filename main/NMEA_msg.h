@@ -9,7 +9,7 @@ struct NMEA_msg {
     uint8_t source;
     uint8_t priority : 3;
     int data_length_bytes;
-    unsigned char data[MaxDataLen];
+    char data[MaxDataLen];
 };
 
 #endif //NMEA_MSG_Hcode 

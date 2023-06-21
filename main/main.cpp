@@ -9,12 +9,15 @@
 #include <NMEA2000.h>
 #include "ESP32N2kStream.h"
 #include <N2kMessages.h>
+
 #include "driver/gpio.h"
+#include "bi-inc/attr_container.h"
 
 #include "wasm_export.h"
 #include "bh_read_file.h"
 #include "bh_getopt.h"
 #include "bh_platform.h"
+
 #include <queue>
 
 /**
@@ -49,56 +52,61 @@ extern tN2kSendMessage N2kSendMessages[];
 
 static unsigned long N2kMsgSentCount=0;
 static unsigned long N2kMsgFailCount=0;
-static bool ShowSentMessages=false;
+//static bool ShowSentMessages=false;
 static bool Sending=false;
 static tN2kScheduler NextStatsTime;
 
 char* native_to_app_msg_buf = NULL;
+/**********************************************************
+ * Forward Declarations
+*/
+void HandleNMEA2000Msg(const tN2kMsg &N2kMsg);
 
+void create_msg_container(NMEA_msg msg, char* char_msg);
 // Queue that stores all messages received on all controllers
-queue<NMEA_msg> received_msgs_q;
+std::queue<NMEA_msg> received_msgs_q;
 
 //Queue for controller 0 that stores messages to be sent out on controller 0
-queue<NMEA_msg> ctrl0_q;
+std::queue<NMEA_msg> ctrl0_q;
 
 /****************************************************************************
  * \brief returns a char array representing a NMEA_msg. 
  * To be called from wasm app to receive a message
  * \return unsigned char*
+ * 
 */
-unsigned char * SendMsgToApp(wasm_exec_env_t exec_env){
-  unsigned char* char_msg;
+char* SendMsgToApp(wasm_exec_env_t exec_env){
+  char* char_msg = NULL;
   if (received_msgs_q.empty()){
     return NULL;
   }
-  NMEA_msg msg = received_msgs_q.pop();
-  attr_container_t msg_container = create_msg_container(msg);
-  attr_container_serialize(char_msg, msg_container);
-
+  NMEA_msg msg = received_msgs_q.front();
+  received_msgs_q.pop();//TODO - probably don't delete it here in case send doesn't work properly
+  create_msg_container(msg, char_msg);
   return char_msg;
 }
 
 /**
- * 
-*/
-bool ReceiveMsgFromApp(wasm_exec_env_t exec_env, uint8_t controller_number, uint32_t PGN, uint8_t source, uint8_t priority, int data_length_bytes, unsigned char data[223]){
+ * create_msg
+ * */
+bool ReceiveMsgFromApp(uint8_t controller_number,uint32_t PGN, uint8_t source, uint8_t priority, int32_t data_length_bytes, char* data){
   NMEA_msg msg;
   msg.controller_number = controller_number;
   msg.PGN = PGN;
-  msg.data = data;
+  std::copy(data, data + 223, msg.data);
   msg.priority = priority;
   msg.source = source;
   msg.data_length_bytes = data_length_bytes;
 
   if (controller_number == 0){
-    ctrl0_q.push_back(msg);
-    return true
+    ctrl0_q.push(msg);
+    return true;
   }
 
   return false;
 }
 
-/*********************************************************************************
+/**
  * \brief takes mesages out of controller queue and sends message out on that controller
  * @todo update time to take time from message
  * 
@@ -107,16 +115,18 @@ void SendN2kMsg() {
   if (ctrl0_q.empty()){
     return;
   }
-  NMEA_msg msg = ctrl0_q.pop();
+  NMEA_msg msg = ctrl0_q.front();
+  ctrl0_q.pop();
   tN2kMsg N2kMsg;
-  N2kMsg.Priority = msg.priority
+  N2kMsg.Priority = msg.priority;
   N2kMsg.PGN = msg.PGN;
   N2kMsg.Source = msg.source;
   N2kMsg.Destination = 0xff; //not used
 
   N2kMsg.DataLen = msg.data_length_bytes;
-  N2kMsg.Data = msd.data;
-  N2Msg.MsgTime = N2kMillis64();//TODO 
+  //N2kMsg.Data = msg.data;
+  std::memcpy(N2kMsg.Data,msg.data, sizeof(N2kMsg.Data)); //convert msg.data from a signed array to unsigned and copy into N2kMsg.Data
+  N2kMsg.MsgTime = N2kMillis64();//TODO 
 
   if ( NMEA2000.SendMsg(N2kMsg) ) {
     N2kMsgSentCount++;
@@ -140,7 +150,7 @@ void SendN2kMsg() {
 // Call back for NMEA2000 open. This will be called, when library starts bus communication.
 // See NMEA2000.SetOnOpen(OnN2kOpen); on setup()
 // We initialize here all messages next sending time. Since we use tN2kSyncScheduler all messages
-// send offset will be synchronized to libary.
+// send offset will be synchronized SendMsgToAppRecto libary.
 void OnN2kOpen() {
   //for ( size_t i=0; i<nN2kSendMessages; i++ ) {
   //  if ( N2kSendMessages[i].Scheduler.IsEnabled() ) N2kSendMessages[i].Scheduler.UpdateNextTime();
@@ -207,15 +217,15 @@ void N2K_task(void *pvParameters)
     for (;;)
     {
         // this runs everytime the task runs:
-      SendN2kMessages();
+      SendN2kMsg();
       NMEA2000.ParseMessages();    
     }
     vTaskDelete(NULL); // should never get here...
 }
-#define AddSendPGN(fn,NextSend,Period,Offset,Enabled) {fn,#fn,NextSend,Period,Offset+300,Enabled}
-tN2kSendMessage N2kSendMessages[]={
-    AddSendPGN(SendN2kPressure,0,2000,42,true) // 130314
-};
+//#define AddSendPGN(fn,NextSend,Period,Offset,Enabled) {fn,#fn,NextSend,Period,Offset+300,Enabled}
+//tN2kSendMessage N2kSendMessages[]={
+//    AddSendPGN(SendN2kPressure,0,2000,42,true) // 130314
+//};
 
 //size_t nN2kSendMessages=sizeof(N2kSendMessages)/sizeof(tN2kSendMessage);
 
@@ -228,60 +238,74 @@ tN2kSendMessage N2kSendMessages[]={
 void HandleNMEA2000Msg(const tN2kMsg &N2kMsg) {
   NMEA_msg msg;
   msg.controller_number = 0;
-  msg.priority = N2KMsg.Priority;
-  msg.PGN = N2KMsg.PGN;
-  msg.data_length_bytes = N2KMsg.DataLen;
-  msg.data = N2KMsg.Data;
+  msg.priority = N2kMsg.Priority;
+  msg.PGN = N2kMsg.PGN;
+  msg.data_length_bytes = N2kMsg.DataLen;
+
+  size_t size = sizeof(N2kMsg.Data) / sizeof(N2kMsg.Data[0]);
+  // Perform the conversion with range checking
+  for (size_t i = 0; i < size; i++) {
+      if (N2kMsg.Data[i] <= static_cast<unsigned char>(CHAR_MAX)) {
+          msg.data[i] = static_cast<signed char>(N2kMsg.Data[i]);
+      } else {
+          // Handle out-of-range value
+          //msg.data[i] = /* Your desired behavior for out-of-range values */;
+          ESP_LOGE(TAG, "data out of range for signed array");
+      }
+  }
 
   received_msgs_q.push(msg);
 }
 
 /*****************************************************************************************
- * 
+ * @todo handle errors
 */
-static attr_container* create_msg_container(NMEA_msg msg){
+void create_msg_container(NMEA_msg msg, char* char_msg){
 
-  attr_container_t *attr_obj = attr_container_create("native to app msg");
+  attr_container_t *attr_obj;
+  attr_obj = attr_container_create("native to app msg");
   if (attr_obj) {
+    bool ret;
       // set controller number
-      bool ret = attr_container_set_uint8(&attr_obj, "controller_number", msg.controller_number);
+      ret = attr_container_set_uint8(&attr_obj, "controller_number", msg.controller_number);
       if (!ret) {
           attr_container_destroy(attr_obj);
-          return NULL;
+          return;
       }
 
       // set priority
-      bool ret = attr_container_set_uint8(&attr_obj, "priority", msg.priority);
+      ret = attr_container_set_uint8(&attr_obj, "priority", msg.priority);
       if (!ret) {
           attr_container_destroy(attr_obj);
-          return NULL;
+          return;
       }
 
       // set source
-      bool ret = attr_container_set_uint8(&attr_obj, "source", msg.source);
+      ret = attr_container_set_uint8(&attr_obj, "source", msg.source);
       if (!ret) {
           attr_container_destroy(attr_obj);
-          return NULL;
+          return;
       }
 
       // set PGN
-      bool ret = attr_container_set_uint32(&attr_obj, "PGN", msg.PGN);
+      ret = attr_container_set_uint32(&attr_obj, "PGN", msg.PGN);
       if (!ret) {
           attr_container_destroy(attr_obj);
-          return NULL;
+          return;
       }
       //temporary test data
-      uint8_t data[8] = {1,4,3,6,26,5,4,8};
+      const int8_t data[8] = {1,4,3,6,26,5,4,8};
       // set data
-      bool ret = attr_container_set_bytearray(&attr_obj, "data", msg.data, msg.data_length_bytes);
+      ret = attr_container_set_bytearray(&attr_obj, "data", data, msg.data_length_bytes);
       if (!ret) {
           attr_container_destroy(attr_obj);
-          return NULL;
+          return;
       }
-      return attr_obj;
+      attr_container_serialize(char_msg, attr_obj);
+      return;
   }
   
-  return NULL;
+  return;
 }
 /**************************************************************************************************
  * Wasm task
