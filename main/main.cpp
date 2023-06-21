@@ -45,7 +45,7 @@ struct tN2kSendMessage {
 };
 
 extern tN2kSendMessage N2kSendMessages[];
-extern size_t nN2kSendMessages;
+//extern size_t nN2kSendMessages;
 
 static unsigned long N2kMsgSentCount=0;
 static unsigned long N2kMsgFailCount=0;
@@ -66,7 +66,7 @@ queue<NMEA_msg> ctrl0_q;
  * To be called from wasm app to receive a message
  * \return unsigned char*
 */
-unsigned char * SendMsgToApp(){
+unsigned char * SendMsgToApp(wasm_exec_env_t exec_env){
   unsigned char* char_msg;
   if (received_msgs_q.empty()){
     return NULL;
@@ -81,13 +81,13 @@ unsigned char * SendMsgToApp(){
 /**
  * 
 */
-bool ReceiveMsgFromApp(uint8_t controller_number, uint32_t PGN, uint8_t src, uint8_t priority, int data_length_bytes, unsigned char data[223]){
+bool ReceiveMsgFromApp(wasm_exec_env_t exec_env, uint8_t controller_number, uint32_t PGN, uint8_t source, uint8_t priority, int data_length_bytes, unsigned char data[223]){
   NMEA_msg msg;
   msg.controller_number = controller_number;
   msg.PGN = PGN;
   msg.data = data;
   msg.priority = priority;
-  msg.src = src;
+  msg.source = source;
   msg.data_length_bytes = data_length_bytes;
 
   if (controller_number == 0){
@@ -98,68 +98,86 @@ bool ReceiveMsgFromApp(uint8_t controller_number, uint32_t PGN, uint8_t src, uin
   return false;
 }
 
+/*********************************************************************************
+ * \brief takes mesages out of controller queue and sends message out on that controller
+ * @todo update time to take time from message
+ * 
+*/
+void SendN2kMsg() {
+  if (ctrl0_q.empty()){
+    return;
+  }
+  NMEA_msg msg = ctrl0_q.pop();
+  tN2kMsg N2kMsg;
+  N2kMsg.Priority = msg.priority
+  N2kMsg.PGN = msg.PGN;
+  N2kMsg.Source = msg.source;
+  N2kMsg.Destination = 0xff; //not used
 
-void SendN2kMsg(const tN2kMsg &N2kMsg) {
+  N2kMsg.DataLen = msg.data_length_bytes;
+  N2kMsg.Data = msd.data;
+  N2Msg.MsgTime = N2kMillis64();//TODO 
+
   if ( NMEA2000.SendMsg(N2kMsg) ) {
     N2kMsgSentCount++;
   } else {
     N2kMsgFailCount++;
   }
-  if ( ShowSentMessages ) N2kMsg.Print(&serial);
+  //if ( ShowSentMessages ) N2kMsg.Print(&serial);
 }
-void SendN2kPressure() {
-    tN2kMsg N2kMsg;
-    N2kMsg.SetPGN(130314L);
-    N2kMsg.Priority = 5;
-    N2kMsg.AddByte(0);
-    N2kMsg.AddByte((unsigned char) 2);
-    N2kMsg.AddByte((unsigned char) N2kps_CompressedAir);
-    N2kMsg.Add4ByteDouble(mBarToPascal(1024),0.1);
-    N2kMsg.AddByte(0xff); // reserved
-    SendN2kMsg(N2kMsg);
-}
+//void SendN2kPressure() {
+//    tN2kMsg N2kMsg;
+//    N2kMsg.SetPGN(130314L);
+//    N2kMsg.Priority = 5;
+//    N2kMsg.AddByte(0);
+//    N2kMsg.AddByte((unsigned char) 2);
+//    N2kMsg.AddByte((unsigned char) N2kps_CompressedAir);
+//    N2kMsg.Add4ByteDouble(mBarToPascal(1024),0.1);
+//    N2kMsg.AddByte(0xff); // reserved
+//    SendN2kMsg(N2kMsg);
+//}
 // *****************************************************************************
 // Call back for NMEA2000 open. This will be called, when library starts bus communication.
 // See NMEA2000.SetOnOpen(OnN2kOpen); on setup()
 // We initialize here all messages next sending time. Since we use tN2kSyncScheduler all messages
 // send offset will be synchronized to libary.
 void OnN2kOpen() {
-  for ( size_t i=0; i<nN2kSendMessages; i++ ) {
-    if ( N2kSendMessages[i].Scheduler.IsEnabled() ) N2kSendMessages[i].Scheduler.UpdateNextTime();
-  }
+  //for ( size_t i=0; i<nN2kSendMessages; i++ ) {
+  //  if ( N2kSendMessages[i].Scheduler.IsEnabled() ) N2kSendMessages[i].Scheduler.UpdateNextTime();
+  //}
   Sending=true;
 }
 // *****************************************************************************
 // Function check is it time to send message. If it is, message will be sent and
 // next send time will be updated.
 // Function always returns next time it should be handled.
-int64_t CheckSendMessage(tN2kSendMessage &N2kSendMessage) {
-  if ( N2kSendMessage.Scheduler.IsDisabled() ) return N2kSendMessage.Scheduler.GetNextTime();
-
-  if ( N2kSendMessage.Scheduler.IsTime() ) {
-    N2kSendMessage.Scheduler.UpdateNextTime();
-    N2kSendMessage.SendFunction();
-  }
-
-  return N2kSendMessage.Scheduler.GetNextTime();
-}
+//int64_t CheckSendMessage(tN2kSendMessage &N2kSendMessage) {
+//  if ( N2kSendMessage.Scheduler.IsDisabled() ) return N2kSendMessage.Scheduler.GetNextTime();
+//
+//  if ( N2kSendMessage.Scheduler.IsTime() ) {
+//    N2kSendMessage.Scheduler.UpdateNextTime();
+//    N2kSendMessage.SendFunction();
+//  }
+//
+//  return N2kSendMessage.Scheduler.GetNextTime();
+//}
 
 // *****************************************************************************
 // Function send enabled messages from tN2kSendMessage structure according to their
 // period+offset.
-void SendN2kMessages() {
-  static uint64_t NextSend=0;
-  uint64_t Now=N2kMillis64();
-
-  if ( NextSend<Now ) {
-    uint64_t NextMsgSend;
-    NextSend=Now+2000;
-    for ( size_t i=0; i<nN2kSendMessages; i++ ) {
-      NextMsgSend=CheckSendMessage(N2kSendMessages[i]);
-      if ( NextMsgSend<NextSend ) NextSend=NextMsgSend;
-    }
-  }
-}
+//void SendN2kMessages() {
+//  static uint64_t NextSend=0;
+//  uint64_t Now=N2kMillis64();
+//
+//  if ( NextSend<Now ) {
+//    uint64_t NextMsgSend;
+//    NextSend=Now+2000;
+//    for ( size_t i=0; i<nN2kSendMessages; i++ ) {
+//      NextMsgSend=CheckSendMessage(N2kSendMessages[i]);
+//      if ( NextMsgSend<NextSend ) NextSend=NextMsgSend;
+//    }
+//  }
+//}
 
 // This is a FreeRTOS task
 void N2K_task(void *pvParameters)
@@ -199,7 +217,7 @@ tN2kSendMessage N2kSendMessages[]={
     AddSendPGN(SendN2kPressure,0,2000,42,true) // 130314
 };
 
-size_t nN2kSendMessages=sizeof(N2kSendMessages)/sizeof(tN2kSendMessage);
+//size_t nN2kSendMessages=sizeof(N2kSendMessages)/sizeof(tN2kSendMessage);
 
 /*****************************************************************************
  * \brief Creates a NMEA_msg objects and adds it to the received messages queue
@@ -240,7 +258,7 @@ static attr_container* create_msg_container(NMEA_msg msg){
       }
 
       // set source
-      bool ret = attr_container_set_uint8(&attr_obj, "source", msg.src);
+      bool ret = attr_container_set_uint8(&attr_obj, "source", msg.source);
       if (!ret) {
           attr_container_destroy(attr_obj);
           return NULL;
@@ -303,6 +321,18 @@ void * iwasm_main(void *arg)
         {
             "printHello", // the name of WASM function name
             reinterpret_cast<void*>(printHello),    // the native function pointer
+            "(i)i",  // the function prototype signature, avoid to use i32
+            NULL        // attachment is NULL
+        },
+        {
+            "SendMsgToApp", // the name of WASM function name
+            reinterpret_cast<void*>(SendMsgToApp),    // the native function pointer
+            "(i)i",  // the function prototype signature, avoid to use i32
+            NULL        // attachment is NULL
+        },
+        {
+            "ReceiveMsgFromApp", // the name of WASM function name
+            reinterpret_cast<void*>(ReceiveMsgFromApp),    // the native function pointer
             "(i)i",  // the function prototype signature, avoid to use i32
             NULL        // attachment is NULL
         }
