@@ -162,7 +162,7 @@ size_t nN2kSendMessages=sizeof(N2kSendMessages)/sizeof(tN2kSendMessage);
 
 int printHello(wasm_exec_env_t exec_env,int32_t number ){
     printf("Hello World #%ld \n", number);
-    return 0;
+    return 6;
 }
 static void * app_instance_main(wasm_module_inst_t module_inst)
 {
