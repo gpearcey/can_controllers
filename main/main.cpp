@@ -15,6 +15,7 @@
 #include "bh_read_file.h"
 #include "bh_getopt.h"
 #include "bh_platform.h"
+#include <queue>
 
 /**
  * WebAssembly App
@@ -53,6 +54,50 @@ static bool Sending=false;
 static tN2kScheduler NextStatsTime;
 
 char* native_to_app_msg_buf = NULL;
+
+// Queue that stores all messages received on all controllers
+queue<NMEA_msg> received_msgs_q;
+
+//Queue for controller 0 that stores messages to be sent out on controller 0
+queue<NMEA_msg> ctrl0_q;
+
+/****************************************************************************
+ * \brief returns a char array representing a NMEA_msg. 
+ * To be called from wasm app to receive a message
+ * \return unsigned char*
+*/
+unsigned char * SendMsgToApp(){
+  unsigned char* char_msg;
+  if (received_msgs_q.empty()){
+    return NULL;
+  }
+  NMEA_msg msg = received_msgs_q.pop();
+  attr_container_t msg_container = create_msg_container(msg);
+  attr_container_serialize(char_msg, msg_container);
+
+  return char_msg;
+}
+
+/**
+ * 
+*/
+bool ReceiveMsgFromApp(uint8_t controller_number, uint32_t PGN, uint8_t src, uint8_t priority, int data_length_bytes, unsigned char data[223]){
+  NMEA_msg msg;
+  msg.controller_number = controller_number;
+  msg.PGN = PGN;
+  msg.data = data;
+  msg.priority = priority;
+  msg.src = src;
+  msg.data_length_bytes = data_length_bytes;
+
+  if (controller_number == 0){
+    ctrl0_q.push_back(msg);
+    return true
+  }
+
+  return false;
+}
+
 
 void SendN2kMsg(const tN2kMsg &N2kMsg) {
   if ( NMEA2000.SendMsg(N2kMsg) ) {
@@ -156,45 +201,53 @@ tN2kSendMessage N2kSendMessages[]={
 
 size_t nN2kSendMessages=sizeof(N2kSendMessages)/sizeof(tN2kSendMessage);
 
-//*****************************************************************************
-//NMEA 2000 message handler
+/*****************************************************************************
+ * \brief Creates a NMEA_msg objects and adds it to the received messages queue
+ * 
+ * \param N2kMsg Reference to the N2KMs being handled
+ * \return void
+ */
 void HandleNMEA2000Msg(const tN2kMsg &N2kMsg) {
-  
-  uint32_t buffer = wasm_runtime_module_malloc(module_inst, 100, &buf);
-  attr_container* container = create_msg_container();
-  attr_container_serialize(buf , container);
+  NMEA_msg msg;
+  msg.controller_number = 0;
+  msg.priority = N2KMsg.Priority;
+  msg.PGN = N2KMsg.PGN;
+  msg.data_length_bytes = N2KMsg.DataLen;
+  msg.data = N2KMsg.Data;
+
+  received_msgs_q.push(msg);
 }
 
 /*****************************************************************************************
  * 
 */
-static attr_container* create_msg_container(void *msg){
+static attr_container* create_msg_container(NMEA_msg msg){
 
   attr_container_t *attr_obj = attr_container_create("native to app msg");
   if (attr_obj) {
       // set controller number
-      bool ret = attr_container_set_uint8(&attr_obj, "controller_number", 0);
+      bool ret = attr_container_set_uint8(&attr_obj, "controller_number", msg.controller_number);
       if (!ret) {
           attr_container_destroy(attr_obj);
           return NULL;
       }
 
       // set priority
-      bool ret = attr_container_set_uint8(&attr_obj, "priority", 5);
+      bool ret = attr_container_set_uint8(&attr_obj, "priority", msg.priority);
       if (!ret) {
           attr_container_destroy(attr_obj);
           return NULL;
       }
 
       // set source
-      bool ret = attr_container_set_uint8(&attr_obj, "source", 3);
+      bool ret = attr_container_set_uint8(&attr_obj, "source", msg.src);
       if (!ret) {
           attr_container_destroy(attr_obj);
           return NULL;
       }
 
       // set PGN
-      bool ret = attr_container_set_uint32(&attr_obj, "PGN", 125750);
+      bool ret = attr_container_set_uint32(&attr_obj, "PGN", msg.PGN);
       if (!ret) {
           attr_container_destroy(attr_obj);
           return NULL;
@@ -202,7 +255,7 @@ static attr_container* create_msg_container(void *msg){
       //temporary test data
       uint8_t data[8] = {1,4,3,6,26,5,4,8};
       // set data
-      bool ret = attr_container_set_bytearray(&attr_obj, "data", data, 8);
+      bool ret = attr_container_set_bytearray(&attr_obj, "data", msg.data, msg.data_length_bytes);
       if (!ret) {
           attr_container_destroy(attr_obj);
           return NULL;
