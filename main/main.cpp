@@ -313,14 +313,9 @@ void create_msg_container(NMEA_msg msg, char* char_msg){
 */
 #define NATIVE_STACK_SIZE (4*1024)
 
-int printHello(wasm_exec_env_t exec_env,int32_t number ){
-    printf("Hello World #%ld \n", number);
-    return 6;
-}
-
-int printStr(wasm_exec_env_t exec_env,char* input ){
-    printf("printStr: %s\n",input);
-    return 0;
+void PrintStr(wasm_exec_env_t exec_env,char* input ){
+    printf("PrintStr: %s\n",input);
+    return;
 }
 static void * app_instance_main(wasm_module_inst_t module_inst)
 {
@@ -357,15 +352,9 @@ void * iwasm_main(void *arg)
     /* the native functions that will be exported to WASM app */
     static NativeSymbol native_symbols[] = {
         {
-            "printHello", // the name of WASM function name
-            reinterpret_cast<void*>(printHello),    // the native function pointer
-            "(i)i",  // the function prototype signature, avoid to use i32
-            NULL        // attachment is NULL
-        },
-        {
-            "printStr", // the name of WASM function name
-            reinterpret_cast<void*>(printStr),    // the native function pointer
-            "($)i",  // the function prototype signature, avoid to use i32
+            "PrintStr", // the name of WASM function name
+            reinterpret_cast<void*>(PrintStr),    // the native function pointer
+            "($)",  // the function prototype signature, avoid to use i32
             NULL        // attachment is NULL
         },
         {
@@ -446,20 +435,20 @@ void * iwasm_main(void *arg)
        unless the WASM app will free the passed pointer in its code */
     //wasm_runtime_module_free(wasm_module_inst, buffer_for_wasm);
     
-    if (!(func = wasm_runtime_lookup_function(wasm_module_inst, "get_msg",
+    if (!(func = wasm_runtime_lookup_function(wasm_module_inst, "link_msg_buffer",
                                                NULL))) {
         printf(
-            "The wasm function get_msg wasm function is not found.\n");
+            "The wasm function link_msg_buffer wasm function is not found.\n");
         goto fail;
     }
 
     if (wasm_runtime_call_wasm(exec_env, func, 2, argv)) {
-        printf("Native finished calling wasm function: get_msg, "
+        printf("Native finished calling wasm function: link_msg_buffer, "
                "returned a formatted string: %s\n",
                buffer);
     }
     else {
-        printf("call wasm function get_msg failed. error: %s\n",
+        printf("call wasm function link_msg_buffer failed. error: %s\n",
                wasm_runtime_get_exception(wasm_module_inst));
         goto fail;
     }
