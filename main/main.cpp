@@ -75,15 +75,15 @@ std::queue<NMEA_msg> ctrl0_q;
  * \return unsigned char*
  * 
 */
-char* SendMsgToApp(wasm_exec_env_t exec_env){
+int SendMsgToApp(wasm_exec_env_t exec_env, const char* char_ptr, int32_t length){
   char* char_msg = NULL;
   if (received_msgs_q.empty()){
-    return NULL;
+    return 0;
   }
   NMEA_msg msg = received_msgs_q.front();
   received_msgs_q.pop();//TODO - probably don't delete it here in case send doesn't work properly
   create_msg_container(msg, char_msg);
-  return char_msg;
+  return 0;
 }
 
 /**
@@ -317,6 +317,11 @@ int printHello(wasm_exec_env_t exec_env,int32_t number ){
     printf("Hello World #%ld \n", number);
     return 0;
 }
+
+int printStr(wasm_exec_env_t exec_env,char* input ){
+    printf("printStr: %s\n",input);
+    return 0;
+}
 static void * app_instance_main(wasm_module_inst_t module_inst)
 {
     const char *exception;
@@ -333,15 +338,23 @@ void * iwasm_main(void *arg)
     /* setup variables for instantiating and running the wasm module */
     uint8_t *wasm_file_buf = NULL;
     unsigned wasm_file_buf_size = 0;
+    wasm_exec_env_t exec_env = NULL;
     wasm_module_t wasm_module = NULL;
     wasm_module_inst_t wasm_module_inst = NULL;
     char error_buf[128];
     void *ret;
+    wasm_function_inst_t func = NULL;
     RuntimeInitArgs init_args;
+    char * buffer = NULL;
+    uint32_t buffer_for_wasm = 0;
+
+
+
 
     /* configure memory allocation */
     memset(&init_args, 0, sizeof(RuntimeInitArgs));
 
+    /* the native functions that will be exported to WASM app */
     static NativeSymbol native_symbols[] = {
         {
             "printHello", // the name of WASM function name
@@ -350,9 +363,15 @@ void * iwasm_main(void *arg)
             NULL        // attachment is NULL
         },
         {
+            "printStr", // the name of WASM function name
+            reinterpret_cast<void*>(printStr),    // the native function pointer
+            "($)i",  // the function prototype signature, avoid to use i32
+            NULL        // attachment is NULL
+        },
+        {
             "SendMsgToApp", // the name of WASM function name
             reinterpret_cast<void*>(SendMsgToApp),    // the native function pointer
-            "(i)i",  // the function prototype signature, avoid to use i32
+            "(*~)",  // the function prototype signature, avoid to use i32
             NULL        // attachment is NULL
         },
         {
@@ -371,7 +390,7 @@ void * iwasm_main(void *arg)
 #error The usage of a global heap pool is not implemented yet for esp-idf.
 #endif
 
-    // Native symbols need below registration phase
+    /* configure the native functions being exported to WASM app */
     init_args.n_native_symbols = sizeof(native_symbols) / sizeof(NativeSymbol);
     init_args.native_module_name = "env";
     init_args.native_symbols = native_symbols;
@@ -404,10 +423,56 @@ void * iwasm_main(void *arg)
         goto fail2interp;
     }
 
+    
+    exec_env = wasm_runtime_create_exec_env(wasm_module_inst, 32 * 1024);//stack size
+    if (!exec_env) {
+        printf("Create wasm execution environment failed.\n");
+        goto fail;
+    }
+
+    ESP_LOGI(TAG, "Malloc buffer in wasm function");
+    buffer_for_wasm = wasm_runtime_module_malloc(wasm_module_inst, 100, (void **)&buffer);
+    if (buffer_for_wasm == 0) {
+        ESP_LOGI(TAG, "Malloc failed");
+        goto fail;
+    }
+    uint32 argv[2];
+    strncpy(buffer, "hello", 100); /* use native address for accessing in runtime */
+    argv[0] = buffer_for_wasm;     /* pass the buffer address for WASM space */
+    argv[1] = 100;                 /* the size of buffer */
+    ESP_LOGI(TAG, "Call wasm function");
+    //wasm_runtime_call_wasm(exec_env, func, 2, argv);
+    /* it is runtime embedder's responsibility to release the memory,
+       unless the WASM app will free the passed pointer in its code */
+    //wasm_runtime_module_free(wasm_module_inst, buffer_for_wasm);
+    
+    if (!(func = wasm_runtime_lookup_function(wasm_module_inst, "get_msg",
+                                               NULL))) {
+        printf(
+            "The wasm function get_msg wasm function is not found.\n");
+        goto fail;
+    }
+
+    if (wasm_runtime_call_wasm(exec_env, func, 2, argv)) {
+        printf("Native finished calling wasm function: get_msg, "
+               "returned a formatted string: %s\n",
+               buffer);
+    }
+    else {
+        printf("call wasm function get_msg failed. error: %s\n",
+               wasm_runtime_get_exception(wasm_module_inst));
+        goto fail;
+    }
+
+    ESP_LOGI(TAG, "Changing buffer");
+    strncpy(buffer, "apple", 100);
+
+    
     ESP_LOGI(TAG, "run main() of the application");
     ret = app_instance_main(wasm_module_inst);
     assert(!ret);
 
+    wasm_runtime_module_free(wasm_module_inst, buffer_for_wasm);
     
     /* destroy the module instance */
     ESP_LOGI(TAG, "Deinstantiate WASM runtime");
@@ -417,6 +482,8 @@ fail2interp:
     /* unload the module */
     ESP_LOGI(TAG, "Unload WASM module");
     wasm_runtime_unload(wasm_module);
+    return NULL;
+
 fail1interp:
 
     /* destroy runtime environment */
@@ -424,6 +491,23 @@ fail1interp:
     wasm_runtime_destroy();
 
     return NULL;
+fail:
+    if (exec_env)
+        wasm_runtime_destroy_exec_env(exec_env);
+    if (wasm_module_inst) {
+        if (buffer_for_wasm){
+            wasm_runtime_module_free(wasm_module_inst, buffer_for_wasm);}
+        wasm_runtime_deinstantiate(wasm_module_inst);
+    }
+    if (wasm_module)
+        wasm_runtime_unload(wasm_module);
+    if (buffer)
+        BH_FREE(buffer);
+    wasm_runtime_destroy();
+    return NULL;
+
+
+
 }
 
 extern "C" int app_main(void)
