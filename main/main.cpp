@@ -111,7 +111,20 @@ bool GetMsg(wasm_exec_env_t exec_env){
 }
 
 bool SendMsg(wasm_exec_env_t exec_env, int32_t controller_number, int32_t priority, int32_t PGN, int32_t source, uint8_t* data, int32_t data_length_bytes ){
-    return true;
+    NMEA_msg msg;
+    msg.controller_number = controller_number;
+    msg.priority = priority;
+    msg.PGN = PGN;
+    msg.source = source;
+    msg.data_length_bytes = data_length_bytes;
+    msg.data = std::vector<uint8_t>(data, data + data_length_bytes);
+
+    if (msg.controller_number == 0){
+        ctrl0_q.push(msg);
+        return true;
+    }
+
+    return false;
 }
 
 
@@ -170,8 +183,10 @@ void SendN2kMsg() {
   N2kMsg.MsgTime = N2kMillis64();//TODO 
 
   if ( NMEA2000.SendMsg(N2kMsg) ) {
+    ESP_LOGI(TAG, "sent a message");
     N2kMsgSentCount++;
   } else {
+    ESP_LOGI(TAG, "failed to send a message");
     N2kMsgFailCount++;
   }
   //if ( ShowSentMessages ) N2kMsg.Print(&serial);
