@@ -71,9 +71,20 @@ std::queue<NMEA_msg> ctrl0_q;
 
 /**********************************************************************************
  * \brief converts a NMEA_msg to a string
+ * @todo make sure that if pgn is only 4 digits in hex it still takes 5
  * \return string
 */
 std::string nmea_to_string(NMEA_msg& msg){
+    std::stringstream ss;
+    ss << std::hex << msg.controller_number;
+    ss << std::hex << msg.priority;
+    ss << std::hex << msg.PGN;
+    ss << std::hex << msg.source;
+    ss << std::hex << msg.data_length_bytes;
+    for (d : msg.data){
+        ss << std::hex << d
+    }
+    const std::string s = ss.str();
     
 }
 /****************************************************************************
@@ -90,8 +101,9 @@ bool GetMsg(wasm_exec_env_t exec_env){
   }
   NMEA_msg msg = received_msgs_q.front();
   received_msgs_q.pop();//TODO - probably don't delete it here in case send doesn't work properly
-  std::string str_msg = create_msg_container(msg, char_msg);
-  strncpy(buffer, "apple", 100);
+  std::string str_msg = nmea_to_string(msg);
+  int len_str_msg = 10 + msg.data_length_bytes;
+  strncpy(buffer, str_msg, len_str_msg);
   return true;
 }
 
