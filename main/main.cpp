@@ -69,21 +69,30 @@ std::queue<NMEA_msg> received_msgs_q;
 //Queue for controller 0 that stores messages to be sent out on controller 0
 std::queue<NMEA_msg> ctrl0_q;
 
+/**********************************************************************************
+ * \brief converts a NMEA_msg to a string
+ * \return string
+*/
+std::string nmea_to_string(NMEA_msg& msg){
+    
+}
 /****************************************************************************
- * \brief returns a char array representing a NMEA_msg. 
- * To be called from wasm app to receive a message
+ * \brief puts a message in the wasm buffer. 
+ * To be called from wasm app to receive a message. 
+ * Converts a NMEA_msg object into a string which is placed in the buffer
  * \return unsigned char*
  * 
 */
-int SendMsgToApp(wasm_exec_env_t exec_env, const char* char_ptr, int32_t length){
+bool GetMsg(wasm_exec_env_t exec_env){
   char* char_msg = NULL;
   if (received_msgs_q.empty()){
     return 0;
   }
   NMEA_msg msg = received_msgs_q.front();
   received_msgs_q.pop();//TODO - probably don't delete it here in case send doesn't work properly
-  create_msg_container(msg, char_msg);
-  return 0;
+  std::string str_msg = create_msg_container(msg, char_msg);
+  strncpy(buffer, "apple", 100);
+  return true;
 }
 
 /**

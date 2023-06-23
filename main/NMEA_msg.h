@@ -1,7 +1,6 @@
 #ifndef NMEA_MSG_H
 #define NMEA_MSG_H
 #include <vector>
-
 struct NMEA_msg {
     uint8_t controller_number;
     static const int MaxDataLen=223;
