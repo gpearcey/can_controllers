@@ -19,11 +19,13 @@
 #include "bh_platform.h"
 
 #include <queue>
+#include <string>
+#include <iomanip>
 
 /**
  * WebAssembly App
 */
-#include "wasm_file.h"
+#include "nmea_attack.h"
 
 using tN2kSendFunction=void (*)();
 ESP32N2kStream serial;
@@ -32,6 +34,8 @@ static const char* TAG = "message_sending.cpp";
 tNMEA2000_esp32 NMEA2000(GPIO_NUM_32, GPIO_NUM_34);
 
 static TaskHandle_t N2K_task_handle = NULL;
+
+char * buffer = NULL; //buffer allocated for wasm app
 
 // Structure for holding message sending information
 struct tN2kSendMessage {
@@ -76,15 +80,16 @@ std::queue<NMEA_msg> ctrl0_q;
 */
 std::string nmea_to_string(NMEA_msg& msg){
     std::stringstream ss;
-    ss << std::hex << msg.controller_number;
-    ss << std::hex << msg.priority;
-    ss << std::hex << msg.PGN;
-    ss << std::hex << msg.source;
-    ss << std::hex << msg.data_length_bytes;
-    for (d : msg.data){
-        ss << std::hex << d
+    ss << std::hex << std::setw(1) << std::setfill('0') << static_cast<int>(msg.controller_number);
+    ss << std::hex << std::setw(1) << std::setfill('0') << static_cast<int>(msg.priority);
+    ss << std::hex << std::setw(5) << std::setfill('0') << msg.PGN;
+    ss << std::hex << std::setw(1) << std::setfill('0') << static_cast<int>(msg.source);
+    ss << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(msg.data_length_bytes);
+    for (uint8_t d : msg.data){
+        ss << std::hex << std::setw(2) << d;
     }
     const std::string s = ss.str();
+    return s;
     
 }
 /****************************************************************************
@@ -95,38 +100,52 @@ std::string nmea_to_string(NMEA_msg& msg){
  * 
 */
 bool GetMsg(wasm_exec_env_t exec_env){
-  char* char_msg = NULL;
   if (received_msgs_q.empty()){
     return 0;
   }
   NMEA_msg msg = received_msgs_q.front();
   received_msgs_q.pop();//TODO - probably don't delete it here in case send doesn't work properly
   std::string str_msg = nmea_to_string(msg);
-  int len_str_msg = 10 + msg.data_length_bytes;
-  strncpy(buffer, str_msg, len_str_msg);
+  strncpy(buffer, str_msg.c_str(), str_msg.size());
   return true;
 }
+
+bool SendMsg(wasm_exec_env_t exec_env, int32_t controller_number, int32_t priority, int32_t PGN, int32_t source, uint8_t* data, int32_t data_length_bytes ){
+    return true;
+}
+
 
 /**
  * create_msg
  * */
-bool ReceiveMsgFromApp(uint8_t controller_number,uint32_t PGN, uint8_t source, uint8_t priority, int32_t data_length_bytes, char* data){
-  NMEA_msg msg;
-  msg.controller_number = controller_number;
-  msg.PGN = PGN;
-  std::copy(data, data + 223, msg.data);
-  msg.priority = priority;
-  msg.source = source;
-  msg.data_length_bytes = data_length_bytes;
+//bool ReceiveMsgFromApp(uint8_t controller_number,uint32_t PGN, uint8_t source, uint8_t priority, int32_t data_length_bytes, ){
+//  NMEA_msg msg;
+//  msg.controller_number = controller_number;
+//  msg.PGN = PGN;
+//  std::copy(data, data + 223, msg.data);
+//  msg.priority = priority;
+//  msg.source = source;
+//  msg.data_length_bytes = data_length_bytes;
+//
+//  if (controller_number == 0){
+//    ctrl0_q.push(msg);
+//    ESP_LOGD(TAG, "added message to controller 0 send queue with PGN %u \n",msg.PGN);
+//    return true;
+//  }
+//  return false;
+//}
 
-  if (controller_number == 0){
-    ctrl0_q.push(msg);
-    ESP_LOGD(TAG, "added message to controller 0 send queue with PGN %u \n",msg.PGN);
-    return true;
-  }
-  return false;
+/**
+ * Helper function
+ * @todo add in error checking if data > 223
+ * 
+*/
+void vectorToCharArray(const std::vector<uint8_t>& data, unsigned char (&Data)[223]) {
+    size_t len = data.size();
+    for (size_t i = 0; i < len; ++i) {
+        Data[i] = static_cast<unsigned char>(data[i]);
+    }
 }
-
 /**
  * \brief takes mesages out of controller queue and sends message out on that controller
  * @todo update time to take time from message
@@ -145,8 +164,9 @@ void SendN2kMsg() {
   N2kMsg.Destination = 0xff; //not used
 
   N2kMsg.DataLen = msg.data_length_bytes;
+  vectorToCharArray(msg.data, N2kMsg.Data);
   //N2kMsg.Data = msg.data;
-  std::memcpy(N2kMsg.Data,msg.data, sizeof(N2kMsg.Data)); //convert msg.data from a signed array to unsigned and copy into N2kMsg.Data
+  //std::memcpy(N2kMsg.Data,msg.data, sizeof(N2kMsg.Data)); //convert msg.data from a signed array to unsigned and copy into N2kMsg.Data
   N2kMsg.MsgTime = N2kMillis64();//TODO 
 
   if ( NMEA2000.SendMsg(N2kMsg) ) {
@@ -361,7 +381,7 @@ void * iwasm_main(void *arg)
     void *ret;
     wasm_function_inst_t func = NULL;
     RuntimeInitArgs init_args;
-    char * buffer = NULL;
+
     uint32_t buffer_for_wasm = 0;
 
 
@@ -379,15 +399,15 @@ void * iwasm_main(void *arg)
             NULL        // attachment is NULL
         },
         {
-            "SendMsgToApp", // the name of WASM function name
-            reinterpret_cast<void*>(SendMsgToApp),    // the native function pointer
-            "(*~)",  // the function prototype signature, avoid to use i32
+            "SendMsg", // the name of WASM function name
+            reinterpret_cast<void*>(SendMsg),    // the native function pointer
+            "(iiii*~)b",  // the function prototype signature, avoid to use i32
             NULL        // attachment is NULL
         },
         {
-            "ReceiveMsgFromApp", // the name of WASM function name
-            reinterpret_cast<void*>(ReceiveMsgFromApp),    // the native function pointer
-            "(u8)i",  // the function prototype signature, avoid to use i32
+            "GetMsg", // the name of WASM function name
+            reinterpret_cast<void*>(GetMsg),    // the native function pointer
+            "()b",  // the function prototype signature, avoid to use i32
             NULL        // attachment is NULL
         }
     };
@@ -414,8 +434,8 @@ void * iwasm_main(void *arg)
     }
     ESP_LOGI(TAG, "Run wamr with interpreter");
 
-    wasm_file_buf = (uint8_t *)wasm_project_wasm;
-    wasm_file_buf_size = sizeof(wasm_project_wasm);
+    wasm_file_buf = (uint8_t *)nmea_attack_wasm;
+    wasm_file_buf_size = sizeof(nmea_attack_wasm);
 
     /* load WASM module */
     if (!(wasm_module = wasm_runtime_load(wasm_file_buf, wasm_file_buf_size,

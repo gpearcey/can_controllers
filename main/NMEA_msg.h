@@ -8,7 +8,7 @@ struct NMEA_msg {
     uint8_t source;
     uint8_t priority : 3;
     int data_length_bytes;
-    std::vector data;
+    std::vector<uint8_t> data;
 };
 
 #endif //NMEA_MSG_Hcode 
