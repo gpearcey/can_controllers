@@ -99,18 +99,27 @@ std::string nmea_to_string(NMEA_msg& msg){
  * \return unsigned char*
  * 
 */
-bool GetMsg(wasm_exec_env_t exec_env){
+int32_t GetMsg(wasm_exec_env_t exec_env){
   if (received_msgs_q.empty()){
+    ESP_LOGI(TAG, "No messages available to send to app\n");
     return 0;
   }
   NMEA_msg msg = received_msgs_q.front();
+  printf("about to add msg with pgn %u \n", msg.PGN);
   received_msgs_q.pop();//TODO - probably don't delete it here in case send doesn't work properly
   std::string str_msg = nmea_to_string(msg);
+  printf(" string form of message: ");
+  printf(str_msg.c_str());
+  printf("\n");
   strncpy(buffer, str_msg.c_str(), str_msg.size());
-  return true;
+  printf("buffer has values: %c %c %c %c %c %c %c %c %c \n",*buffer, *(buffer+1), *(buffer + 2), *(buffer+3), *(buffer+4), *(buffer+5), *(buffer+6), *(buffer+7), *(buffer+8));
+  
+  ESP_LOGI(TAG, "Added message to wasm app buffer");
+  return 1;
 }
 
-bool SendMsg(wasm_exec_env_t exec_env, int32_t controller_number, int32_t priority, int32_t PGN, int32_t source, uint8_t* data, int32_t data_length_bytes ){
+int32_t SendMsg(wasm_exec_env_t exec_env, int32_t controller_number, int32_t priority, int32_t PGN, int32_t source, char* data, int32_t data_length_bytes ){
+    ESP_LOGI(TAG, "SendMsg called \n");
     NMEA_msg msg;
     msg.controller_number = controller_number;
     msg.priority = priority;
@@ -119,7 +128,14 @@ bool SendMsg(wasm_exec_env_t exec_env, int32_t controller_number, int32_t priori
     msg.data_length_bytes = data_length_bytes;
     msg.data = std::vector<uint8_t>(data, data + data_length_bytes);
 
-    if (msg.controller_number == 0){
+
+    for (size_t i = 0; i < data_length_bytes; ++i) {
+        uint8_t value = static_cast<uint8_t>(data[i]);
+        msg.data.push_back(value);
+    }
+
+    if (controller_number == 0){
+        ESP_LOGI(TAG,"Added a msg to ctrl0_q with PGN %u \n", msg.PGN);
         ctrl0_q.push(msg);
         return true;
     }
@@ -297,12 +313,11 @@ void HandleNMEA2000Msg(const tN2kMsg &N2kMsg) {
   msg.priority = N2kMsg.Priority;
   msg.PGN = N2kMsg.PGN;
   msg.data_length_bytes = N2kMsg.DataLen;
-
   size_t size = sizeof(N2kMsg.Data) / sizeof(N2kMsg.Data[0]);
   // Perform the conversion with range checking
   for (size_t i = 0; i < size; i++) {
       if (N2kMsg.Data[i] <= static_cast<unsigned char>(CHAR_MAX)) {
-          msg.data[i] = static_cast<signed char>(N2kMsg.Data[i]);
+          msg.data.push_back(static_cast<signed char>(N2kMsg.Data[i]));
       } else {
           // Handle out-of-range value
           //msg.data[i] = /* Your desired behavior for out-of-range values */;
@@ -311,7 +326,7 @@ void HandleNMEA2000Msg(const tN2kMsg &N2kMsg) {
   }
 
   received_msgs_q.push(msg);
-  ESP_LOGI(TAG, "added msg to received queue");
+  ESP_LOGI(TAG, "added msg to received queue\n");
 }
 
 /*****************************************************************************************
@@ -369,9 +384,22 @@ void create_msg_container(NMEA_msg msg, char* char_msg){
 */
 #define NATIVE_STACK_SIZE (4*1024)
 
-void PrintStr(wasm_exec_env_t exec_env,char* input ){
-    printf("PrintStr: %s\n",input);
+void PrintStr(wasm_exec_env_t exec_env,uint8_t* input, int32_t length){
+    printf("PrintStr: ");
+    for (int32_t i = 0; i < length;i++ ) {
+        printf("%u ", *(input+i));
+    }
+    printf("\n");
     return;
+}
+
+void PrintInt32(wasm_exec_env_t exec_env,int32_t number){
+    printf("PrintInt32: %li \n", number);
+    return;
+}
+int32_t Test(wasm_exec_env_t exec_env){
+    printf("Test Called\n");
+    return 0;
 }
 static void * app_instance_main(wasm_module_inst_t module_inst)
 {
@@ -408,21 +436,34 @@ void * iwasm_main(void *arg)
     /* the native functions that will be exported to WASM app */
     static NativeSymbol native_symbols[] = {
         {
+            "Test",
+            reinterpret_cast<void*>(Test),
+            "()i",
+            NULL
+        },
+        {
             "PrintStr", // the name of WASM function name
             reinterpret_cast<void*>(PrintStr),    // the native function pointer
-            "($)",  // the function prototype signature, avoid to use i32
+            "($i)",  // the function prototype signature, avoid to use i32
+            NULL        // attachment is NULL
+        },
+        {
+            "PrintInt32", // the name of WASM function name
+            reinterpret_cast<void*>(PrintInt32),    // the native function pointer
+            "(i)",  // the function prototype signature, avoid to use i32
             NULL        // attachment is NULL
         },
         {
             "SendMsg", // the name of WASM function name
             reinterpret_cast<void*>(SendMsg),    // the native function pointer
-            "(iiii*~)b",  // the function prototype signature, avoid to use i32
+            "(iiii*~)i",  // the function prototype signature, avoid to use i32
+         //  "(i)b",
             NULL        // attachment is NULL
         },
         {
             "GetMsg", // the name of WASM function name
             reinterpret_cast<void*>(GetMsg),    // the native function pointer
-            "()b",  // the function prototype signature, avoid to use i32
+            "()i",  // the function prototype signature, avoid to use i32
             NULL        // attachment is NULL
         }
     };
@@ -512,10 +553,14 @@ void * iwasm_main(void *arg)
     ESP_LOGI(TAG, "Changing buffer");
     strncpy(buffer, "apple", 100);
 
-    
-    ESP_LOGI(TAG, "run main() of the application");
-    ret = app_instance_main(wasm_module_inst);
-    assert(!ret);
+    while (true){
+        ESP_LOGI(TAG, "run main() of the application");
+        ret = app_instance_main(wasm_module_inst);
+        assert(!ret);
+        vTaskDelay(100 / portTICK_PERIOD_MS);
+
+    }
+
 
     wasm_runtime_module_free(wasm_module_inst, buffer_for_wasm);
     
