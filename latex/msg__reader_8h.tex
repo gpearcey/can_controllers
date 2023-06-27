@@ -1,0 +1,37 @@
+\hypertarget{msg__reader_8h}{}\doxysection{main/msg\+\_\+reader.h File Reference}
+\label{msg__reader_8h}\index{main/msg\_reader.h@{main/msg\_reader.h}}
+
+
+This File contains a class for reading CAN messages.  
+
+
+{\ttfamily \#include \char`\"{}N2k\+Msg.\+h\char`\"{}}\newline
+{\ttfamily \#include \char`\"{}N2k\+Stream.\+h\char`\"{}}\newline
+Include dependency graph for msg\+\_\+reader.\+h\+:\nopagebreak
+\begin{figure}[H]
+\begin{center}
+\leavevmode
+\includegraphics[width=244pt]{msg__reader_8h__incl}
+\end{center}
+\end{figure}
+\doxysubsection*{Classes}
+\begin{DoxyCompactItemize}
+\item 
+class \mbox{\hyperlink{classtActisenseReader}{t\+Actisense\+Reader}}
+\begin{DoxyCompactList}\small\item\em Class for reading Actisense format messages. \end{DoxyCompactList}\end{DoxyCompactItemize}
+\doxysubsection*{Macros}
+\begin{DoxyCompactItemize}
+\item 
+\mbox{\Hypertarget{msg__reader_8h_ac8f32aaaba7b724013a03ba123cca09a}\label{msg__reader_8h_ac8f32aaaba7b724013a03ba123cca09a}} 
+\#define \mbox{\hyperlink{msg__reader_8h_ac8f32aaaba7b724013a03ba123cca09a}{MAX\+\_\+\+STREAM\+\_\+\+MSG\+\_\+\+BUF\+\_\+\+LEN}}~300
+\begin{DoxyCompactList}\small\item\em Maximum length of the stream message buffer. \end{DoxyCompactList}\end{DoxyCompactItemize}
+
+
+\doxysubsection{Detailed Description}
+This File contains a class for reading CAN messages. 
+
+This is class for reading CAN format messages from given stream.
+
+\begin{DoxyNote}{Note}
+There is an unresolved problem to use programming port with reading data. Read works fine for a while, but then stops. With e.\+g. Arduino Due USB port there is no problem. 
+\end{DoxyNote}

@@ -1,0 +1,257 @@
+\hypertarget{classtActisenseReader}{}\doxysection{t\+Actisense\+Reader Class Reference}
+\label{classtActisenseReader}\index{tActisenseReader@{tActisenseReader}}
+
+
+Class for reading Actisense format messages.  
+
+
+
+
+{\ttfamily \#include $<$msg\+\_\+reader.\+h$>$}
+
+\doxysubsection*{Public Member Functions}
+\begin{DoxyCompactItemize}
+\item 
+\mbox{\Hypertarget{classtActisenseReader_a703dee87b012a47077c0f84d280e17e1}\label{classtActisenseReader_a703dee87b012a47077c0f84d280e17e1}} 
+\mbox{\hyperlink{classtActisenseReader_a703dee87b012a47077c0f84d280e17e1}{t\+Actisense\+Reader}} ()
+\begin{DoxyCompactList}\small\item\em Constructor for the class Initialize all class attributes and clear the buffer. \end{DoxyCompactList}\item 
+void \mbox{\hyperlink{classtActisenseReader_a7481ded5bfa3f2324345bf386623337a}{Set\+Read\+Stream}} (N2k\+Stream $\ast$\+\_\+stream)
+\begin{DoxyCompactList}\small\item\em Set the Read Stream object. \end{DoxyCompactList}\item 
+void \mbox{\hyperlink{classtActisenseReader_a43cfbf44f9a4b4f5b97145668751374a}{Set\+Default\+Source}} (unsigned char source)
+\begin{DoxyCompactList}\small\item\em Set the default source address for the messages. \end{DoxyCompactList}\item 
+bool \mbox{\hyperlink{classtActisenseReader_a4d60abae0039ce1d23261c7a71385faa}{Get\+Message\+From\+Stream}} (t\+N2k\+Msg \&N2k\+Msg, bool Read\+Out=true)
+\begin{DoxyCompactList}\small\item\em Read Actisense formatted NMEA2000 message from stream. \end{DoxyCompactList}\item 
+bool \mbox{\hyperlink{classtActisenseReader_a9965bb37f4372c99da831975e6b05026}{Is\+Start}} (char ch)
+\begin{DoxyCompactList}\small\item\em Checks if character is start. \end{DoxyCompactList}\item 
+void \mbox{\hyperlink{classtActisenseReader_aac252eabd1ae7dbc380b2014a3c7c242}{Parse\+Messages}} ()
+\begin{DoxyCompactList}\small\item\em Parse messages. \end{DoxyCompactList}\item 
+void \mbox{\hyperlink{classtActisenseReader_a7f476677b4973320543fd9dda26e108f}{Set\+Msg\+Handler}} (void($\ast$\+\_\+\+Msg\+Handler)(const t\+N2k\+Msg \&N2k\+Msg))
+\begin{DoxyCompactList}\small\item\em Set the Msg Handler object. \end{DoxyCompactList}\item 
+bool \mbox{\hyperlink{classtActisenseReader_a2a4b0bd7c748798de68549fb90a01f5d}{Handling}} () const
+\begin{DoxyCompactList}\small\item\em Indicates if still message handling is needed. \end{DoxyCompactList}\end{DoxyCompactItemize}
+\doxysubsection*{Protected Member Functions}
+\begin{DoxyCompactItemize}
+\item 
+bool \mbox{\hyperlink{classtActisenseReader_ab85258a6c11ed3da4cececf66aebfab5}{Add\+Byte\+To\+Buffer}} (char New\+Byte)
+\begin{DoxyCompactList}\small\item\em Adds a new Byte to the buffer. \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{classtActisenseReader_abab06ffc7dd4499b5059bb413b797b2a}\label{classtActisenseReader_abab06ffc7dd4499b5059bb413b797b2a}} 
+void \mbox{\hyperlink{classtActisenseReader_abab06ffc7dd4499b5059bb413b797b2a}{Clear\+Buffer}} ()
+\begin{DoxyCompactList}\small\item\em Clears the buffer. \end{DoxyCompactList}\item 
+bool \mbox{\hyperlink{classtActisenseReader_ad4b67f887f3f5045220548107f6bb361}{Check\+Message}} (t\+N2k\+Msg \&N2k\+Msg)
+\begin{DoxyCompactList}\small\item\em Checks if a message is valide. \end{DoxyCompactList}\end{DoxyCompactItemize}
+\doxysubsection*{Protected Attributes}
+\begin{DoxyCompactItemize}
+\item 
+\mbox{\Hypertarget{classtActisenseReader_ae68b15c17cff1dbf77ec8f42f381f317}\label{classtActisenseReader_ae68b15c17cff1dbf77ec8f42f381f317}} 
+bool \mbox{\hyperlink{classtActisenseReader_ae68b15c17cff1dbf77ec8f42f381f317}{Start\+Of\+Text\+Received}}
+\begin{DoxyCompactList}\small\item\em Start of text has been received. \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{classtActisenseReader_ae1d7d55c931d15af44e036e392791da2}\label{classtActisenseReader_ae1d7d55c931d15af44e036e392791da2}} 
+bool \mbox{\hyperlink{classtActisenseReader_ae1d7d55c931d15af44e036e392791da2}{Msg\+Is\+Coming}}
+\begin{DoxyCompactList}\small\item\em A Message is coming. \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{classtActisenseReader_a02dc98c25d8cd00557832be2f46942bd}\label{classtActisenseReader_a02dc98c25d8cd00557832be2f46942bd}} 
+bool \mbox{\hyperlink{classtActisenseReader_a02dc98c25d8cd00557832be2f46942bd}{Escape\+Received}}
+\begin{DoxyCompactList}\small\item\em Escape character has been received. \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{classtActisenseReader_a946c91222866e1ab88137adea0b78dd9}\label{classtActisenseReader_a946c91222866e1ab88137adea0b78dd9}} 
+int \mbox{\hyperlink{classtActisenseReader_a946c91222866e1ab88137adea0b78dd9}{byte\+Sum}}
+\begin{DoxyCompactList}\small\item\em Sum of all bytes is used as kind of check sum. \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{classtActisenseReader_ac8dd6305e0e490d4a5db6096300fe78a}\label{classtActisenseReader_ac8dd6305e0e490d4a5db6096300fe78a}} 
+unsigned char \mbox{\hyperlink{classtActisenseReader_ac8dd6305e0e490d4a5db6096300fe78a}{Msg\+Buf}} \mbox{[}\mbox{\hyperlink{msg__reader_8h_ac8f32aaaba7b724013a03ba123cca09a}{MAX\+\_\+\+STREAM\+\_\+\+MSG\+\_\+\+BUF\+\_\+\+LEN}}\mbox{]}
+\begin{DoxyCompactList}\small\item\em Buffer for incoming messages from stream. \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{classtActisenseReader_ad1bac81fdc3d11308bde1660eb10edaf}\label{classtActisenseReader_ad1bac81fdc3d11308bde1660eb10edaf}} 
+int \mbox{\hyperlink{classtActisenseReader_ad1bac81fdc3d11308bde1660eb10edaf}{Msg\+Write\+Pos}}
+\begin{DoxyCompactList}\small\item\em Current write position inside the buffer. \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{classtActisenseReader_aacd032d981bdbc3f694fa631fb1fe03c}\label{classtActisenseReader_aacd032d981bdbc3f694fa631fb1fe03c}} 
+unsigned char \mbox{\hyperlink{classtActisenseReader_aacd032d981bdbc3f694fa631fb1fe03c}{Default\+Source}}
+\begin{DoxyCompactList}\small\item\em Default source of the N2k message. \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{classtActisenseReader_af4c0bdf677e93ba527d3e48123f884b1}\label{classtActisenseReader_af4c0bdf677e93ba527d3e48123f884b1}} 
+N2k\+Stream $\ast$ \mbox{\hyperlink{classtActisenseReader_af4c0bdf677e93ba527d3e48123f884b1}{Read\+Stream}}
+\begin{DoxyCompactList}\small\item\em Stream to read from. \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{classtActisenseReader_aee2d7ad88a2b2ff4dd4ad1e614210251}\label{classtActisenseReader_aee2d7ad88a2b2ff4dd4ad1e614210251}} 
+void($\ast$ {\bfseries Msg\+Handler} )(const t\+N2k\+Msg \&N2k\+Msg)
+\end{DoxyCompactItemize}
+
+
+\doxysubsection{Detailed Description}
+Class for reading Actisense format messages. 
+
+This is class for reading Actisense format messages from given stream.
+
+\begin{DoxyNote}{Note}
+There is an unresolved problem to use programming port with reading data. Read works fine for a while, but then stops. With e.\+g. Arduino Due USB port there is no problem. 
+\end{DoxyNote}
+
+
+\doxysubsection{Member Function Documentation}
+\mbox{\Hypertarget{classtActisenseReader_ab85258a6c11ed3da4cececf66aebfab5}\label{classtActisenseReader_ab85258a6c11ed3da4cececf66aebfab5}} 
+\index{tActisenseReader@{tActisenseReader}!AddByteToBuffer@{AddByteToBuffer}}
+\index{AddByteToBuffer@{AddByteToBuffer}!tActisenseReader@{tActisenseReader}}
+\doxysubsubsection{\texorpdfstring{AddByteToBuffer()}{AddByteToBuffer()}}
+{\footnotesize\ttfamily bool t\+Actisense\+Reader\+::\+Add\+Byte\+To\+Buffer (\begin{DoxyParamCaption}\item[{char}]{New\+Byte }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [protected]}}
+
+
+
+Adds a new Byte to the buffer. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em New\+Byte} & new Byte to be added \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+true -\/$>$ Success 
+
+false -\/$>$ Buffer is full 
+\end{DoxyReturn}
+\mbox{\Hypertarget{classtActisenseReader_ad4b67f887f3f5045220548107f6bb361}\label{classtActisenseReader_ad4b67f887f3f5045220548107f6bb361}} 
+\index{tActisenseReader@{tActisenseReader}!CheckMessage@{CheckMessage}}
+\index{CheckMessage@{CheckMessage}!tActisenseReader@{tActisenseReader}}
+\doxysubsubsection{\texorpdfstring{CheckMessage()}{CheckMessage()}}
+{\footnotesize\ttfamily bool t\+Actisense\+Reader\+::\+Check\+Message (\begin{DoxyParamCaption}\item[{t\+N2k\+Msg \&}]{N2k\+Msg }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [protected]}}
+
+
+
+Checks if a message is valide. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em N2k\+Msg} & Reference to a N2k\+Msg Object ~\newline
+ \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+true ~\newline
+ 
+
+false -\/$>$ Length does not match. Add type, length and crc 
+
+false -\/$>$ Checksum does not match 
+
+false -\/$>$ data length greater then t\+N2k\+Msg\+::\+Max\+Data\+Len 
+\end{DoxyReturn}
+\mbox{\Hypertarget{classtActisenseReader_a4d60abae0039ce1d23261c7a71385faa}\label{classtActisenseReader_a4d60abae0039ce1d23261c7a71385faa}} 
+\index{tActisenseReader@{tActisenseReader}!GetMessageFromStream@{GetMessageFromStream}}
+\index{GetMessageFromStream@{GetMessageFromStream}!tActisenseReader@{tActisenseReader}}
+\doxysubsubsection{\texorpdfstring{GetMessageFromStream()}{GetMessageFromStream()}}
+{\footnotesize\ttfamily bool t\+Actisense\+Reader\+::\+Get\+Message\+From\+Stream (\begin{DoxyParamCaption}\item[{t\+N2k\+Msg \&}]{N2k\+Msg,  }\item[{bool}]{Read\+Out = {\ttfamily true} }\end{DoxyParamCaption})}
+
+
+
+Read Actisense formatted NMEA2000 message from stream. 
+
+You can either call this or Parse\+Messages periodically.
+
+Read Actisense formatted NMEA2000 message from stream Actisense Format\+: $<$10$>$$<$02$>$$<$93$>$$<$length (1)$>$$<$priority (1)$>$$<$PGN (3)$>$$<$destination (1)$>$$<$source (1)$>$$<$time (4)$>$$<$len (1)$>$$<$data (len)$>$$<$CRC (1)$>$$<$10$>$$<$03$>$ or $<$10$>$$<$02$>$$<$94$>$$<$length (1)$>$$<$priority (1)$>$$<$PGN (3)$>$$<$destination (1)$>$$<$len (1)$>$$<$data (len)$>$$<$CRC (1)$>$$<$10$>$$<$03$>$ 
+\begin{DoxyParams}{Parameters}
+{\em N2k\+Msg} & Reference to a N2k\+Msg Object ~\newline
+ \\
+\hline
+{\em Read\+Out} & ~\newline
+\\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+true 
+
+false -\/$>$ if (Read\+Stream==0) 
+\end{DoxyReturn}
+\mbox{\Hypertarget{classtActisenseReader_a2a4b0bd7c748798de68549fb90a01f5d}\label{classtActisenseReader_a2a4b0bd7c748798de68549fb90a01f5d}} 
+\index{tActisenseReader@{tActisenseReader}!Handling@{Handling}}
+\index{Handling@{Handling}!tActisenseReader@{tActisenseReader}}
+\doxysubsubsection{\texorpdfstring{Handling()}{Handling()}}
+{\footnotesize\ttfamily bool t\+Actisense\+Reader\+::\+Handling (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption}) const\hspace{0.3cm}{\ttfamily [inline]}}
+
+
+
+Indicates if still message handling is needed. 
+
+\begin{DoxyReturn}{Returns}
+true 
+
+false 
+\end{DoxyReturn}
+\mbox{\Hypertarget{classtActisenseReader_a9965bb37f4372c99da831975e6b05026}\label{classtActisenseReader_a9965bb37f4372c99da831975e6b05026}} 
+\index{tActisenseReader@{tActisenseReader}!IsStart@{IsStart}}
+\index{IsStart@{IsStart}!tActisenseReader@{tActisenseReader}}
+\doxysubsubsection{\texorpdfstring{IsStart()}{IsStart()}}
+{\footnotesize\ttfamily bool t\+Actisense\+Reader\+::\+Is\+Start (\begin{DoxyParamCaption}\item[{char}]{ch }\end{DoxyParamCaption})}
+
+
+
+Checks if character is start. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em ch} & character \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+true -\/$>$ if (ch==Escape) 
+
+false 
+\end{DoxyReturn}
+\mbox{\Hypertarget{classtActisenseReader_aac252eabd1ae7dbc380b2014a3c7c242}\label{classtActisenseReader_aac252eabd1ae7dbc380b2014a3c7c242}} 
+\index{tActisenseReader@{tActisenseReader}!ParseMessages@{ParseMessages}}
+\index{ParseMessages@{ParseMessages}!tActisenseReader@{tActisenseReader}}
+\doxysubsubsection{\texorpdfstring{ParseMessages()}{ParseMessages()}}
+{\footnotesize\ttfamily void t\+Actisense\+Reader\+::\+Parse\+Messages (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})}
+
+
+
+Parse messages. 
+
+Set message handler with Set\+Msg\+Handler and then call this periodically or use Get\+Message\+From\+Stream \mbox{\Hypertarget{classtActisenseReader_a43cfbf44f9a4b4f5b97145668751374a}\label{classtActisenseReader_a43cfbf44f9a4b4f5b97145668751374a}} 
+\index{tActisenseReader@{tActisenseReader}!SetDefaultSource@{SetDefaultSource}}
+\index{SetDefaultSource@{SetDefaultSource}!tActisenseReader@{tActisenseReader}}
+\doxysubsubsection{\texorpdfstring{SetDefaultSource()}{SetDefaultSource()}}
+{\footnotesize\ttfamily void t\+Actisense\+Reader\+::\+Set\+Default\+Source (\begin{DoxyParamCaption}\item[{unsigned char}]{source }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [inline]}}
+
+
+
+Set the default source address for the messages. 
+
+If you use an application, which sends data by using Actisense data request type, the source set by this function will be set as source. Default=65;
+
+
+\begin{DoxyParams}{Parameters}
+{\em source} & Source address to be used \\
+\hline
+\end{DoxyParams}
+\mbox{\Hypertarget{classtActisenseReader_a7f476677b4973320543fd9dda26e108f}\label{classtActisenseReader_a7f476677b4973320543fd9dda26e108f}} 
+\index{tActisenseReader@{tActisenseReader}!SetMsgHandler@{SetMsgHandler}}
+\index{SetMsgHandler@{SetMsgHandler}!tActisenseReader@{tActisenseReader}}
+\doxysubsubsection{\texorpdfstring{SetMsgHandler()}{SetMsgHandler()}}
+{\footnotesize\ttfamily void t\+Actisense\+Reader\+::\+Set\+Msg\+Handler (\begin{DoxyParamCaption}\item[{void($\ast$)(const t\+N2k\+Msg \&N2k\+Msg)}]{\+\_\+\+Msg\+Handler }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [inline]}}
+
+
+
+Set the Msg Handler object. 
+
+Set message handler to be used in Parse\+Messages, when message has been received.
+
+
+\begin{DoxyParams}{Parameters}
+{\em \+\_\+\+Msg\+Handler} & \{type\} \\
+\hline
+\end{DoxyParams}
+\mbox{\Hypertarget{classtActisenseReader_a7481ded5bfa3f2324345bf386623337a}\label{classtActisenseReader_a7481ded5bfa3f2324345bf386623337a}} 
+\index{tActisenseReader@{tActisenseReader}!SetReadStream@{SetReadStream}}
+\index{SetReadStream@{SetReadStream}!tActisenseReader@{tActisenseReader}}
+\doxysubsubsection{\texorpdfstring{SetReadStream()}{SetReadStream()}}
+{\footnotesize\ttfamily void t\+Actisense\+Reader\+::\+Set\+Read\+Stream (\begin{DoxyParamCaption}\item[{N2k\+Stream $\ast$}]{\+\_\+stream }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [inline]}}
+
+
+
+Set the Read Stream object. 
+
+Set stream, which would be used for reading messages. You have to open stream first, so e.\+g. for Serial\+USB call begin first.
+
+
+\begin{DoxyParams}{Parameters}
+{\em \+\_\+stream} & Stream to read from \\
+\hline
+\end{DoxyParams}
+
+
+The documentation for this class was generated from the following file\+:\begin{DoxyCompactItemize}
+\item 
+main/\mbox{\hyperlink{msg__reader_8h}{msg\+\_\+reader.\+h}}\end{DoxyCompactItemize}
