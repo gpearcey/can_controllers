@@ -124,7 +124,7 @@ int32_t GetMsg(wasm_exec_env_t exec_env){
   return 1;
 }
 
-int32_t SendMsg(wasm_exec_env_t exec_env, int32_t controller_number, int32_t priority, int32_t PGN, int32_t source, char* data, int32_t data_length_bytes ){
+int32_t SendMsg(wasm_exec_env_t exec_env, int32_t controller_number, int32_t priority, int32_t PGN, int32_t source, uint8_t* data, int32_t data_length_bytes ){
     ESP_LOGI(TAG, "SendMsg called \n");
     NMEA_msg msg;
     msg.controller_number = controller_number;
