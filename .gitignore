@@ -2,4 +2,4 @@ build/
 */build/
 sdkconfig
 sdkconfig*
-wasm_file.h
+nmea_attack.h

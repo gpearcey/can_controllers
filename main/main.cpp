@@ -86,7 +86,13 @@ std::string nmea_to_string(NMEA_msg& msg){
     ss << std::hex << std::setw(1) << std::setfill('0') << static_cast<int>(msg.source);
     ss << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(msg.data_length_bytes);
     for (uint8_t d : msg.data){
-        ss << std::hex << std::setw(2) << d;
+        //printf("data is %i ", d);
+        //std::stringstream s;
+        char hex_num[3];
+        sprintf(hex_num, "%X", d);
+        //s << 
+        ss << std::setw(2) << hex_num;
+        //printf("and has been converted to %s \n", s.str().c_str());
     }
     const std::string s = ss.str();
     return s;
@@ -108,7 +114,7 @@ int32_t GetMsg(wasm_exec_env_t exec_env){
   printf("about to add msg with pgn %u \n", msg.PGN);
   received_msgs_q.pop();//TODO - probably don't delete it here in case send doesn't work properly
   std::string str_msg = nmea_to_string(msg);
-  printf(" string form of message: ");
+        printf(" string form of message: ");
   printf(str_msg.c_str());
   printf("\n");
   strncpy(buffer, str_msg.c_str(), str_msg.size());
@@ -393,8 +399,13 @@ void PrintStr(wasm_exec_env_t exec_env,uint8_t* input, int32_t length){
     return;
 }
 
-void PrintInt32(wasm_exec_env_t exec_env,int32_t number){
-    printf("PrintInt32: %li \n", number);
+void PrintInt32(wasm_exec_env_t exec_env,int32_t number,int32_t hex){
+    if (hex == 1){
+        printf("PrintInt32: %lx \n", number);
+    }
+    else {
+        printf("PrintInt32: %li \n", number);
+    }    
     return;
 }
 int32_t Test(wasm_exec_env_t exec_env){
@@ -450,7 +461,7 @@ void * iwasm_main(void *arg)
         {
             "PrintInt32", // the name of WASM function name
             reinterpret_cast<void*>(PrintInt32),    // the native function pointer
-            "(i)",  // the function prototype signature, avoid to use i32
+            "(ii)",  // the function prototype signature, avoid to use i32
             NULL        // attachment is NULL
         },
         {
