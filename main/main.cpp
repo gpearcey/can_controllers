@@ -27,6 +27,7 @@
 #include "esp_log.h"
 #include <N2kMsg.h>
 #include <NMEA2000_esp32.h> 
+#include <NMEA2000_esp32-c6.h>
 #include <NMEA2000.h>
 #include <N2kMessages.h>
 
@@ -57,7 +58,7 @@ static const char* TAG = "main.cpp";
 /**
  * @brief Creates a NMEA2000 Object set to GPIO 32 (TX), and GPIO 32 (RX)
 */
-tNMEA2000_esp32 NMEA2000(GPIO_NUM_32, GPIO_NUM_34);
+tNMEA2000_esp32c6 NMEA2000(GPIO_NUM_32, GPIO_NUM_34);
 
 static TaskHandle_t N2K_task_handle = NULL;
 

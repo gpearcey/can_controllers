@@ -17,28 +17,29 @@ endif()
 #
 # Specify IDF ISA and target explicitly.
 #
-set(IDF_ISA "xtensa" CACHE STRING "Instruction Set Architecture (default: xtensa)")
-set(IDF_TARGET "esp32" CACHE STRING "Target (default: esp32)")
+#set(IDF_ISA "xtensa" CACHE STRING "Instruction Set Architecture (default: xtensa)")
+#set(IDF_ISA "riscv32" CACHE STRING "Instruction Set Architecture (default: riscv32)")
+#set(IDF_TARGET "esp" CACHE STRING "Target (default: esp)")
 
 #
 # Find Espressif compiler path.
 #
-set(ESP_COMPILER_NAME "${IDF_ISA}-${IDF_TARGET}-elf-gcc")
-find_path(ESP_COMPILER_PATH "${ESP_COMPILER_NAME}"
-          DOC "Espressif toolchain directory"
-          PATHS $ENV{PATH}
-          PATH_SUFFIXES "*")
-
-if(NOT ESP_COMPILER_PATH)
-    # It would be nice if we could find the compiler and append its path to,
-    # e.g., CMAKE_PROGRAM_PATH, but that isn't compatible with some of the
-    # "cmake calling cmake" stuff that the Espressif toolchain does to build
-    # bootloader components.
-    message(FATAL_ERROR "Cannot find ${ESP_COMPILER_NAME};"
-            "try setting PATH to include, e.g.,"
-            " ~/.espressif/tools/.../${IDF_ISA}-${IDF_TARGET}-elf")
-endif()
-
+#set(ESP_COMPILER_NAME "${IDF_ISA}-${IDF_TARGET}-elf-gcc")
+#find_path(ESP_COMPILER_PATH "${ESP_COMPILER_NAME}"
+#          DOC "Espressif toolchain directory"
+#          PATHS $ENV{PATH}
+#          PATH_SUFFIXES "*")
+#
+#if(NOT ESP_COMPILER_PATH)
+#    # It would be nice if we could find the compiler and append its path to,
+#    # e.g., CMAKE_PROGRAM_PATH, but that isn't compatible with some of the
+#    # "cmake calling cmake" stuff that the Espressif toolchain does to build
+#    # bootloader components.
+#    message(FATAL_ERROR "Cannot find ${ESP_COMPILER_NAME};"
+#            "try setting PATH to include, e.g.,"
+#            " ~/.espressif/tools/.../${IDF_ISA}-${IDF_TARGET}-elf")
+#endif()
+#
 
 # Now include the ESP project details
 set (COMPONENTS ${IDF_TARGET} main freertos esptool_py wamr)
