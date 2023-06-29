@@ -45,7 +45,11 @@
 //WebAssembley App
 #include "nmea_attack.h" 
 
-#define NATIVE_STACK_SIZE (4*1024)
+#define NATIVE_STACK_SIZE               (32*1024)
+#define NATIVE_HEAP_SIZE                (32*1024)
+#define PTHREAD_STACK_SIZE              4096
+#define MAX_DATA_LENGTH_BTYES           223
+#define BUFFER_SIZE                     (10 + 223*2) //10 bytes for id, 223*2 bytes for data
 
 // Tag for ESP logging
 static const char* TAG = "main.cpp";
@@ -65,7 +69,7 @@ static unsigned long N2kMsgFailCount=0;
 //----------------------------------------------------------------------------------------------------------------------------
 void HandleNMEA2000Msg(const tN2kMsg &N2kMsg);
 std::string nmea_to_string(NMEA_msg& msg);
-void vectorToCharArray(const std::vector<uint8_t>& data_vec, unsigned char (&data_char_arr)[223]);
+void vectorToCharArray(const std::vector<uint8_t>& data_vec, unsigned char (&data_char_arr)[MAX_DATA_LENGTH_BTYES]);
 
 //----------------------------------------------------------------------------------------------------------------------------
 // Variables
@@ -203,13 +207,9 @@ std::string nmea_to_string(NMEA_msg& msg){
     ss << std::hex << std::setw(1) << std::setfill('0') << static_cast<int>(msg.source);
     ss << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(msg.data_length_bytes);
     for (uint8_t d : msg.data){
-        //printf("data is %i ", d);
-        //std::stringstream s;
         char hex_num[3];
         sprintf(hex_num, "%X", d);
-        //s << 
         ss << std::setw(2) << hex_num;
-        //printf("and has been converted to %s \n", s.str().c_str());
     }
     const std::string s = ss.str();
     return s;
@@ -222,7 +222,7 @@ std::string nmea_to_string(NMEA_msg& msg){
  * @param[out] data_char_arr 
  * 
 */
-void vectorToCharArray(const std::vector<uint8_t>& data_vec, unsigned char (&data_char_arr)[223]) {
+void vectorToCharArray(const std::vector<uint8_t>& data_vec, unsigned char (&data_char_arr)[MAX_DATA_LENGTH_BTYES]) {
     size_t len = data_vec.size();
     for (size_t i = 0; i < len; ++i) {
         data_char_arr[i] = static_cast<unsigned char>(data_vec[i]);
@@ -303,6 +303,7 @@ void HandleNMEA2000Msg(const tN2kMsg &N2kMsg) {
   msg.controller_number = 0;
   msg.priority = N2kMsg.Priority;
   msg.PGN = N2kMsg.PGN;
+  msg.source = N2kMsg.Source;
   msg.data_length_bytes = N2kMsg.DataLen;
   size_t size = sizeof(N2kMsg.Data) / sizeof(N2kMsg.Data[0]);
   // Perform the conversion with range checking
@@ -427,15 +428,15 @@ void * iwasm_main(void *arg)
 
     ESP_LOGI(TAG, "Instantiate WASM runtime");
     if (!(wasm_module_inst =
-              wasm_runtime_instantiate(wasm_module, 32 * 1024, // stack size
-                                       32 * 1024,              // heap size
+              wasm_runtime_instantiate(wasm_module, NATIVE_STACK_SIZE, // stack size
+                                       NATIVE_HEAP_SIZE,              // heap size
                                        error_buf, sizeof(error_buf)))) {
         ESP_LOGE(TAG, "Error while instantiating: %s", error_buf);
         goto fail;
     }
 
     
-    exec_env = wasm_runtime_create_exec_env(wasm_module_inst, 32 * 1024);//stack size
+    exec_env = wasm_runtime_create_exec_env(wasm_module_inst, NATIVE_STACK_SIZE);//stack size
     if (!exec_env) {
         printf("Create wasm execution environment failed.\n");
         goto fail;
@@ -449,7 +450,7 @@ void * iwasm_main(void *arg)
     }
     uint32 argv[2];
     argv[0] = buffer_for_wasm;     /* pass the buffer address for WASM space */
-    argv[1] = 10+223*2;                 /* the size of buffer */
+    argv[1] = BUFFER_SIZE;                 /* the size of buffer */
     ESP_LOGI(TAG, "Call wasm function");
     /* it is runtime embedder's responsibility to release the memory,
        unless the WASM app will free the passed pointer in its code */
@@ -541,7 +542,7 @@ extern "C" int app_main(void)
     pthread_attr_t tattr;
     pthread_attr_init(&tattr);
     pthread_attr_setdetachstate(&tattr, PTHREAD_CREATE_JOINABLE);
-    pthread_attr_setstacksize(&tattr, 4096);
+    pthread_attr_setstacksize(&tattr, PTHREAD_STACK_SIZE);
 
     res = pthread_create(&t, &tattr, iwasm_main, (void *)NULL);
     assert(res == 0);
