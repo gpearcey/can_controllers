@@ -1,3 +1,24 @@
+/**
+ * @file main.cpp
+ * 
+ * @brief Contains FreeRTOS tasks and pthread for sending and receiving messages between WASM app and CAN controller.
+ * @todo convert relavent ESP_LOGI to ESP_LOGD
+*/
+
+/** 
+ * @mainpage Can Controllers Documentation
+ * @section intro_sec Introduction
+ * This is the Triangle C++ library for C++ Documentation Tutorial.
+ * @section install_sec Installation
+ *
+ * @subsection install_dependencies Installing Dependencies
+ * Do somethings ...
+ * @subsection install_library Installing Library
+ * Do somethings ...
+ * @subsection install_example Installing Examples
+ * Do somethings ...
+ */
+
 #include <stdio.h>
 
 #include "freertos/FreeRTOS.h"
@@ -7,7 +28,6 @@
 #include <N2kMsg.h>
 #include <NMEA2000_esp32.h> 
 #include <NMEA2000.h>
-#include "ESP32N2kStream.h"
 #include <N2kMessages.h>
 
 #include "driver/gpio.h"
@@ -19,96 +39,215 @@
 #include "bh_platform.h"
 
 #include <queue>
+#include <string>
+#include <iomanip>
+
+//WebAssembley App
+#include "nmea_attack.h" 
+
+#define NATIVE_STACK_SIZE               (32*1024)
+#define NATIVE_HEAP_SIZE                (32*1024)
+#define PTHREAD_STACK_SIZE              4096
+#define MAX_DATA_LENGTH_BTYES           223
+#define BUFFER_SIZE                     (10 + 223*2) //10 bytes for id, 223*2 bytes for data
+
+// Tag for ESP logging
+static const char* TAG = "main.cpp";
 
 /**
- * WebAssembly App
+ * @brief Creates a NMEA2000 Object set to GPIO 32 (TX), and GPIO 32 (RX)
 */
-#include "wasm_file.h"
-
-using tN2kSendFunction=void (*)();
-ESP32N2kStream serial;
-
-static const char* TAG = "message_sending.cpp";
 tNMEA2000_esp32 NMEA2000(GPIO_NUM_32, GPIO_NUM_34);
 
 static TaskHandle_t N2K_task_handle = NULL;
 
-// Structure for holding message sending information
-struct tN2kSendMessage {
-  tN2kSendFunction SendFunction;
-  const char *const Description;
-  tN2kSyncScheduler Scheduler;
-
-  tN2kSendMessage(tN2kSendFunction _SendFunction, const char *const _Description, uint32_t /* _NextTime */ 
-                  ,uint32_t _Period, uint32_t _Offset, bool _Enabled) : 
-                    SendFunction(_SendFunction), 
-                    Description(_Description), 
-                    Scheduler(_Enabled,_Period,_Offset) {}
-  void Enable(bool state);
-};
-
-extern tN2kSendMessage N2kSendMessages[];
-//extern size_t nN2kSendMessages;
-
 static unsigned long N2kMsgSentCount=0;
 static unsigned long N2kMsgFailCount=0;
-//static bool ShowSentMessages=false;
-static bool Sending=false;
-static tN2kScheduler NextStatsTime;
 
-char* native_to_app_msg_buf = NULL;
-/**********************************************************
- * Forward Declarations
-*/
+//----------------------------------------------------------------------------------------------------------------------------
+// Forward Declarations
+//----------------------------------------------------------------------------------------------------------------------------
 void HandleNMEA2000Msg(const tN2kMsg &N2kMsg);
+std::string nmea_to_string(NMEA_msg& msg);
+void vectorToCharArray(const std::vector<uint8_t>& data_vec, unsigned char (&data_char_arr)[MAX_DATA_LENGTH_BTYES]);
 
-void create_msg_container(NMEA_msg msg, char* char_msg);
-// Queue that stores all messages received on all controllers
-std::queue<NMEA_msg> received_msgs_q;
+//----------------------------------------------------------------------------------------------------------------------------
+// Variables
+//-----------------------------------------------------------------------------------------------------------------------------
+char * wasm_buffer = NULL;  //!< buffer allocated for wasm app, used to hold received messages so app can access them
+std::queue<NMEA_msg> received_msgs_q; //!< Queue that stores all messages received on all controllers
+std::queue<NMEA_msg> ctrl0_q; //!< Queue that stores messages to be sent out on controller 0
+bool wasm_app_delay = true;
+int read_msg_count = 0;
+int send_msg_count = 0;
 
-//Queue for controller 0 that stores messages to be sent out on controller 0
-std::queue<NMEA_msg> ctrl0_q;
+//-------------------------------------------------------------------------------------------------------------------------------
+// Native Functions to Export to WASM App
+//-----------------------------------------------------------------------------------------------------------------------------
 
-/****************************************************************************
- * \brief returns a char array representing a NMEA_msg. 
- * To be called from wasm app to receive a message
- * \return unsigned char*
+/**
+ * @brief prints a uint8_t array to terminal
  * 
+ * Native function to be exported to WASM app. Used for debugging purposes.
+ * 
+ * @param exec_env
+ * @param input pointer to array
+ * @param length length of the array
 */
-int SendMsgToApp(wasm_exec_env_t exec_env, const char* char_ptr, int32_t length){
-  char* char_msg = NULL;
-  if (received_msgs_q.empty()){
-    return 0;
-  }
-  NMEA_msg msg = received_msgs_q.front();
-  received_msgs_q.pop();//TODO - probably don't delete it here in case send doesn't work properly
-  create_msg_container(msg, char_msg);
-  return 0;
+void PrintStr(wasm_exec_env_t exec_env,uint8_t* input, int32_t length){
+    printf("PrintStr: ");
+    for (int32_t i = 0; i < length;i++ ) {
+        printf("%u ", *(input+i));
+    }
+    printf("\n");
+    return;
 }
 
 /**
- * create_msg
- * */
-bool ReceiveMsgFromApp(uint8_t controller_number,uint32_t PGN, uint8_t source, uint8_t priority, int32_t data_length_bytes, char* data){
-  NMEA_msg msg;
-  msg.controller_number = controller_number;
-  msg.PGN = PGN;
-  std::copy(data, data + 223, msg.data);
-  msg.priority = priority;
-  msg.source = source;
-  msg.data_length_bytes = data_length_bytes;
-
-  if (controller_number == 0){
-    ctrl0_q.push(msg);
-    ESP_LOGD(TAG, "added message to controller 0 send queue with PGN %u \n",msg.PGN);
-    return true;
-  }
-  return false;
+ * @brief prints a integer to terminal
+ * 
+ * Native function to be exported to WASM app. Used for debugging purposes.
+ * 
+ * @param exec_env
+ * @param number integer to print
+ * @param hex prints the number in hex format if hex is 1, else prints it in decimal format
+*/
+void PrintInt32(wasm_exec_env_t exec_env,int32_t number,int32_t hex){
+    if (hex == 1){
+        printf("PrintInt32: %lx \n", number);
+    }
+    else {
+        printf("PrintInt32: %li \n", number);
+    }    
+    return;
 }
+
+void AddAppDelay(wasm_exec_env_t exec_env){
+    wasm_app_delay = true;
+    ESP_LOGI(TAG, "WASM Delay on");
+}
+
+void RemoveAppDelay(wasm_exec_env_t exec_env){
+    wasm_app_delay = false;
+    ESP_LOGI(TAG, "WASM Delay off");
+}
+
+
+/****************************************************************************
+ * \brief puts a message in the wasm buffer. 
+ * 
+ * This function is exported to the WASM app to be called from app to receive a message. 
+ * Converts a NMEA_msg object into a string which is placed in the buffer.
+ * @param exec_env
+ * @todo maybe don't delete the message right away, hould only delete if it was sent sucessfully. 
+ * \return 1 if message converted successfully, 0 if not.
+*/
+int32_t GetMsg(wasm_exec_env_t exec_env){
+  if (received_msgs_q.empty()){
+    ESP_LOGI(TAG, "No messages available to send to app\n");
+    return 0;
+  }
+  NMEA_msg msg = received_msgs_q.front();
+  printf("about to add msg with pgn %u \n", msg.PGN);
+  received_msgs_q.pop();//TODO
+  std::string str_msg = nmea_to_string(msg);
+        printf(" string form of message: ");
+  printf(str_msg.c_str());
+  printf("\n");
+  strncpy(wasm_buffer, str_msg.c_str(), str_msg.size());
+  printf("wasm_buffer has values: %c %c %c %c %c %c %c %c %c \n",*wasm_buffer, *(wasm_buffer+1), *(wasm_buffer + 2), *(wasm_buffer+3), *(wasm_buffer+4), *(wasm_buffer+5), *(wasm_buffer+6), *(wasm_buffer+7), *(wasm_buffer+8));
+  
+  ESP_LOGI(TAG, "Added message to wasm app wasm_buffer");
+  return 1;
+}
+
+/****************************************************************************
+ * \brief Puts a message in a controller send queue
+ * 
+ * This function is exported to the WASM app to be called from app to send a message. 
+ * Creates a NMEA_msg object and puts it into the appropriate send queue. 
+ * 
+ * @param exec_env
+ * @param[in] controller_number 
+ * @param[in] priority
+ * @param[in] PGN
+ * @param[in] source
+ * @param[in] data
+ * @param[in] data_length_bytes 
+ * 
+ * \return 1 if message converted successfully, 0 if not.
+*/
+int32_t SendMsg(wasm_exec_env_t exec_env, int32_t controller_number, int32_t priority, int32_t PGN, int32_t source, uint8_t* data, int32_t data_length_bytes ){
+    ESP_LOGI(TAG, "SendMsg called \n");
+    NMEA_msg msg;
+    msg.controller_number = controller_number;
+    msg.priority = priority;
+    msg.PGN = PGN;
+    msg.source = source;
+    msg.data_length_bytes = data_length_bytes;
+    msg.data = std::vector<uint8_t>(data, data + data_length_bytes);
+
+
+    for (size_t i = 0; i < data_length_bytes; ++i) {
+        uint8_t value = static_cast<uint8_t>(data[i]);
+        msg.data.push_back(value);
+    }
+
+    if (controller_number == 0){
+        ESP_LOGI(TAG,"Added a msg to ctrl0_q with PGN %u \n", msg.PGN);
+        ctrl0_q.push(msg);
+        return 1;
+    }
+
+    return 0;
+}
+
+//----------------------------------------------------------------------------------------------------------------------------------------------------------------
+// Helper Functions for Conversions
+//-----------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+/**
+ * \brief converts a NMEA_msg to a string
+ * @todo make sure that if pgn is only 4 digits in hex it still takes 5
+ * @param[in] msg reference to a NMEA_msg object
+ * \return std::string representing the message
+*/
+std::string nmea_to_string(NMEA_msg& msg){
+    std::stringstream ss;
+    ss << std::hex << std::setw(1) << std::setfill('0') << static_cast<int>(msg.controller_number);
+    ss << std::hex << std::setw(1) << std::setfill('0') << static_cast<int>(msg.priority);
+    ss << std::hex << std::setw(5) << std::setfill('0') << msg.PGN;
+    ss << std::hex << std::setw(1) << std::setfill('0') << static_cast<int>(msg.source);
+    ss << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(msg.data_length_bytes);
+    for (uint8_t d : msg.data){
+        char hex_num[3];
+        sprintf(hex_num, "%X", d);
+        ss << std::setw(2) << hex_num;
+    }
+    const std::string s = ss.str();
+    return s;
+    
+}
+/**
+ * @brief Fills a char array with values from a vector.
+ * @todo add in error checking if data > 223
+ * @param[in] data_vec
+ * @param[out] data_char_arr 
+ * 
+*/
+void vectorToCharArray(const std::vector<uint8_t>& data_vec, unsigned char (&data_char_arr)[MAX_DATA_LENGTH_BTYES]) {
+    size_t len = data_vec.size();
+    for (size_t i = 0; i < len; ++i) {
+        data_char_arr[i] = static_cast<unsigned char>(data_vec[i]);
+    }
+}
+
+//---------------------------------------------------------------------------------------------------------------------------------------------
 
 /**
  * \brief takes mesages out of controller queue and sends message out on that controller
  * @todo update time to take time from message
+ * @todo update for multiple controllers
  * 
 */
 void SendN2kMsg() {
@@ -124,95 +263,39 @@ void SendN2kMsg() {
   N2kMsg.Destination = 0xff; //not used
 
   N2kMsg.DataLen = msg.data_length_bytes;
-  //N2kMsg.Data = msg.data;
-  std::memcpy(N2kMsg.Data,msg.data, sizeof(N2kMsg.Data)); //convert msg.data from a signed array to unsigned and copy into N2kMsg.Data
+  vectorToCharArray(msg.data, N2kMsg.Data);
   N2kMsg.MsgTime = N2kMillis64();//TODO 
 
   if ( NMEA2000.SendMsg(N2kMsg) ) {
+    ESP_LOGI(TAG, "sent a message \n");
     N2kMsgSentCount++;
+    send_msg_count++;
   } else {
+    ESP_LOGI(TAG, "failed to send a message \n");
     N2kMsgFailCount++;
   }
-  //if ( ShowSentMessages ) N2kMsg.Print(&serial);
-}
-//void SendN2kPressure() {
-//    tN2kMsg N2kMsg;
-//    N2kMsg.SetPGN(130314L);
-//    N2kMsg.Priority = 5;
-//    N2kMsg.AddByte(0);
-//    N2kMsg.AddByte((unsigned char) 2);
-//    N2kMsg.AddByte((unsigned char) N2kps_CompressedAir);
-//    N2kMsg.Add4ByteDouble(mBarToPascal(1024),0.1);
-//    N2kMsg.AddByte(0xff); // reserved
-//    SendN2kMsg(N2kMsg);
-//}
-// *****************************************************************************
-// Call back for NMEA2000 open. This will be called, when library starts bus communication.
-// See NMEA2000.SetOnOpen(OnN2kOpen); on setup()
-// We initialize here all messages next sending time. Since we use tN2kSyncScheduler all messages
-// send offset will be synchronized SendMsgToAppRecto libary.
-void OnN2kOpen() {
-  //for ( size_t i=0; i<nN2kSendMessages; i++ ) {
-  //  if ( N2kSendMessages[i].Scheduler.IsEnabled() ) N2kSendMessages[i].Scheduler.UpdateNextTime();
-  //}
-  Sending=true;
-}
-// *****************************************************************************
-// Function check is it time to send message. If it is, message will be sent and
-// next send time will be updated.
-// Function always returns next time it should be handled.
-//int64_t CheckSendMessage(tN2kSendMessage &N2kSendMessage) {
-//  if ( N2kSendMessage.Scheduler.IsDisabled() ) return N2kSendMessage.Scheduler.GetNextTime();
-//
-//  if ( N2kSendMessage.Scheduler.IsTime() ) {
-//    N2kSendMessage.Scheduler.UpdateNextTime();
-//    N2kSendMessage.SendFunction();
-//  }
-//
-//  return N2kSendMessage.Scheduler.GetNextTime();
-//}
 
-// *****************************************************************************
-// Function send enabled messages from tN2kSendMessage structure according to their
-// period+offset.
-//void SendN2kMessages() {
-//  static uint64_t NextSend=0;
-//  uint64_t Now=N2kMillis64();
-//
-//  if ( NextSend<Now ) {
-//    uint64_t NextMsgSend;
-//    NextSend=Now+2000;
-//    for ( size_t i=0; i<nN2kSendMessages; i++ ) {
-//      NextMsgSend=CheckSendMessage(N2kSendMessages[i]);
-//      if ( NextMsgSend<NextSend ) NextSend=NextMsgSend;
-//    }
-//  }
-//}
+  ESP_LOGI(TAG, "Messages Read: %d, Messages Sent %d \n", read_msg_count, send_msg_count);
+}
 
-// This is a FreeRTOS task
+/**
+ * @brief FreeRTOS task for sending and receiving messages from CAN controller with NMEA2000 library
+ * 
+ * @todo frame buffer should be 32 - see if this works
+ * @param pvParameters
+*/
 void N2K_task(void *pvParameters)
 {
     ESP_LOGI(TAG, "Starting task");
     
     NMEA2000.SetN2kCANMsgBufSize(8);
-    NMEA2000.SetN2kCANReceiveFrameBufSize(250);// not sure what this should be set to
+    NMEA2000.SetN2kCANReceiveFrameBufSize(250);
+    NMEA2000.EnableForward(false);                
 
-    NMEA2000.SetForwardStream(new ESP32N2kStream()); // will need to change to WASM expected format
-    NMEA2000.SetForwardType(tNMEA2000::fwdt_Text);   // Show in clear text
-    // NMEA2000.EnableForward(false);                 // Disable all msg forwarding to USB (=Serial)
+    NMEA2000.SetMsgHandler(HandleNMEA2000Msg);
 
-    NMEA2000.SetMsgHandler(HandleNMEA2000Msg); //optional message handler will do somthing once desired message is received
+    NMEA2000.SetMode(tNMEA2000::N2km_ListenAndSend);
 
-    //do I need to do anything for group functions?
-
-    // If you also want to see all traffic on the bus use N2km_ListenAndNode instead of N2km_NodeOnly below
-    NMEA2000.SetMode(tNMEA2000::N2km_ListenAndSend, 22);//does 22 do anything in ListenOnly mode?
-
-    // Here we could tell, which PGNs we transmit and receive
-    //NMEA2000.ExtendTransmitMessages(TransmitMessages, 0);
-    //NMEA2000.ExtendReceiveMessages(ReceiveMessages, 0);
-    // Define OnOpen call back. This will be called, when CAN is open and system starts address claiming.
-    NMEA2000.SetOnOpen(OnN2kOpen);
     NMEA2000.Open();
     for (;;)
     {
@@ -222,16 +305,12 @@ void N2K_task(void *pvParameters)
     }
     vTaskDelete(NULL); // should never get here...
 }
-//#define AddSendPGN(fn,NextSend,Period,Offset,Enabled) {fn,#fn,NextSend,Period,Offset+300,Enabled}
-//tN2kSendMessage N2kSendMessages[]={
-//    AddSendPGN(SendN2kPressure,0,2000,42,true) // 130314
-//};
 
-//size_t nN2kSendMessages=sizeof(N2kSendMessages)/sizeof(tN2kSendMessage);
 
-/*****************************************************************************
- * \brief Creates a NMEA_msg objects and adds it to the received messages queue
+/**
+ * \brief Creates a NMEA_msg object and adds it to the received messages queue
  * 
+ * @todo handle out of range data
  * \param N2kMsg Reference to the N2KMs being handled
  * \return void
  */
@@ -240,13 +319,13 @@ void HandleNMEA2000Msg(const tN2kMsg &N2kMsg) {
   msg.controller_number = 0;
   msg.priority = N2kMsg.Priority;
   msg.PGN = N2kMsg.PGN;
+  msg.source = N2kMsg.Source;
   msg.data_length_bytes = N2kMsg.DataLen;
-
   size_t size = sizeof(N2kMsg.Data) / sizeof(N2kMsg.Data[0]);
   // Perform the conversion with range checking
   for (size_t i = 0; i < size; i++) {
       if (N2kMsg.Data[i] <= static_cast<unsigned char>(CHAR_MAX)) {
-          msg.data[i] = static_cast<signed char>(N2kMsg.Data[i]);
+          msg.data.push_back(static_cast<signed char>(N2kMsg.Data[i]));
       } else {
           // Handle out-of-range value
           //msg.data[i] = /* Your desired behavior for out-of-range values */;
@@ -255,73 +334,16 @@ void HandleNMEA2000Msg(const tN2kMsg &N2kMsg) {
   }
 
   received_msgs_q.push(msg);
-  ESP_LOGI(TAG, "added msg to received queue");
+  read_msg_count++;
+  ESP_LOGI(TAG, "added msg to received queue\n");
 }
 
-/*****************************************************************************************
- * @todo handle errors
+
+/**
+ * @brief executes main function in wasm app
+ * 
+ * @param module_inst wasm module instance
 */
-void create_msg_container(NMEA_msg msg, char* char_msg){
-
-  attr_container_t *attr_obj;
-  attr_obj = attr_container_create("native to app msg");
-  if (attr_obj) {
-    bool ret;
-      // set controller number
-      ret = attr_container_set_uint8(&attr_obj, "controller_number", msg.controller_number);
-      if (!ret) {
-          attr_container_destroy(attr_obj);
-          return;
-      }
-
-      // set priority
-      ret = attr_container_set_uint8(&attr_obj, "priority", msg.priority);
-      if (!ret) {
-          attr_container_destroy(attr_obj);
-          return;
-      }
-
-      // set source
-      ret = attr_container_set_uint8(&attr_obj, "source", msg.source);
-      if (!ret) {
-          attr_container_destroy(attr_obj);
-          return;
-      }
-
-      // set PGN
-      ret = attr_container_set_uint32(&attr_obj, "PGN", msg.PGN);
-      if (!ret) {
-          attr_container_destroy(attr_obj);
-          return;
-      }
-      //temporary test data
-      const int8_t data[8] = {1,4,3,6,26,5,4,8};
-      // set data
-      ret = attr_container_set_bytearray(&attr_obj, "data", data, msg.data_length_bytes);
-      if (!ret) {
-          attr_container_destroy(attr_obj);
-          return;
-      }
-      attr_container_serialize(char_msg, attr_obj);
-      return;
-  }
-  
-  return;
-}
-/**************************************************************************************************
- * Wasm task
-*/
-#define NATIVE_STACK_SIZE (4*1024)
-
-int printHello(wasm_exec_env_t exec_env,int32_t number ){
-    printf("Hello World #%ld \n", number);
-    return 6;
-}
-
-int printStr(wasm_exec_env_t exec_env,char* input ){
-    printf("printStr: %s\n",input);
-    return 0;
-}
 static void * app_instance_main(wasm_module_inst_t module_inst)
 {
     const char *exception;
@@ -332,6 +354,16 @@ static void * app_instance_main(wasm_module_inst_t module_inst)
     return NULL;
 }
 
+/**
+ * @brief WASM pthread to host wasm app
+ * 
+ * Sets up the wasm environment. 
+ * Links native function to be exported. 
+ * Calls wasm app function to link allocated wasm buffer.
+ * Runs main function in wasm app.
+ * 
+ * @param arg unused - I don't know why this is required
+*/
 void * iwasm_main(void *arg)
 {
     (void)arg; /* unused */
@@ -345,11 +377,8 @@ void * iwasm_main(void *arg)
     void *ret;
     wasm_function_inst_t func = NULL;
     RuntimeInitArgs init_args;
-    char * buffer = NULL;
+
     uint32_t buffer_for_wasm = 0;
-
-
-
 
     /* configure memory allocation */
     memset(&init_args, 0, sizeof(RuntimeInitArgs));
@@ -357,27 +386,39 @@ void * iwasm_main(void *arg)
     /* the native functions that will be exported to WASM app */
     static NativeSymbol native_symbols[] = {
         {
-            "printHello", // the name of WASM function name
-            reinterpret_cast<void*>(printHello),    // the native function pointer
-            "(i)i",  // the function prototype signature, avoid to use i32
+            "PrintStr", // the name of WASM function name
+            reinterpret_cast<void*>(PrintStr),    // the native function pointer
+            "($i)",  // the function prototype signature, avoid to use i32
             NULL        // attachment is NULL
         },
         {
-            "printStr", // the name of WASM function name
-            reinterpret_cast<void*>(printStr),    // the native function pointer
-            "($)i",  // the function prototype signature, avoid to use i32
+            "PrintInt32", // the name of WASM function name
+            reinterpret_cast<void*>(PrintInt32),    // the native function pointer
+            "(ii)",  // the function prototype signature, avoid to use i32
             NULL        // attachment is NULL
         },
         {
-            "SendMsgToApp", // the name of WASM function name
-            reinterpret_cast<void*>(SendMsgToApp),    // the native function pointer
-            "(*~)",  // the function prototype signature, avoid to use i32
+            "AddAppDelay",
+            reinterpret_cast<void*>(AddAppDelay), 
+            "()",
+            NULL
+        },
+        {
+            "RemoveAppDelay",
+            reinterpret_cast<void*>(RemoveAppDelay), 
+            "()",
+            NULL
+        },
+        {
+            "SendMsg", // the name of WASM function name
+            reinterpret_cast<void*>(SendMsg),    // the native function pointer
+            "(iiii*~)i",  // the function prototype signature, avoid to use i32
             NULL        // attachment is NULL
         },
         {
-            "ReceiveMsgFromApp", // the name of WASM function name
-            reinterpret_cast<void*>(ReceiveMsgFromApp),    // the native function pointer
-            "(u8)i",  // the function prototype signature, avoid to use i32
+            "GetMsg", // the name of WASM function name
+            reinterpret_cast<void*>(GetMsg),    // the native function pointer
+            "()i",  // the function prototype signature, avoid to use i32
             NULL        // attachment is NULL
         }
     };
@@ -404,73 +445,74 @@ void * iwasm_main(void *arg)
     }
     ESP_LOGI(TAG, "Run wamr with interpreter");
 
-    wasm_file_buf = (uint8_t *)wasm_project_wasm;
-    wasm_file_buf_size = sizeof(wasm_project_wasm);
+    wasm_file_buf = (uint8_t *)nmea_attack_wasm;
+    wasm_file_buf_size = sizeof(nmea_attack_wasm);
 
     /* load WASM module */
     if (!(wasm_module = wasm_runtime_load(wasm_file_buf, wasm_file_buf_size,
                                           error_buf, sizeof(error_buf)))) {
         ESP_LOGE(TAG, "Error in wasm_runtime_load: %s", error_buf);
-        goto fail1interp;
+        goto fail;
     }
 
     ESP_LOGI(TAG, "Instantiate WASM runtime");
     if (!(wasm_module_inst =
-              wasm_runtime_instantiate(wasm_module, 32 * 1024, // stack size
-                                       32 * 1024,              // heap size
+              wasm_runtime_instantiate(wasm_module, NATIVE_STACK_SIZE, // stack size
+                                       NATIVE_HEAP_SIZE,              // heap size
                                        error_buf, sizeof(error_buf)))) {
         ESP_LOGE(TAG, "Error while instantiating: %s", error_buf);
-        goto fail2interp;
+        goto fail;
     }
 
     
-    exec_env = wasm_runtime_create_exec_env(wasm_module_inst, 32 * 1024);//stack size
+    exec_env = wasm_runtime_create_exec_env(wasm_module_inst, NATIVE_STACK_SIZE);//stack size
     if (!exec_env) {
         printf("Create wasm execution environment failed.\n");
         goto fail;
     }
 
     ESP_LOGI(TAG, "Malloc buffer in wasm function");
-    buffer_for_wasm = wasm_runtime_module_malloc(wasm_module_inst, 100, (void **)&buffer);
+    buffer_for_wasm = wasm_runtime_module_malloc(wasm_module_inst, 100, (void **)&wasm_buffer);
     if (buffer_for_wasm == 0) {
         ESP_LOGI(TAG, "Malloc failed");
         goto fail;
     }
     uint32 argv[2];
-    strncpy(buffer, "hello", 100); /* use native address for accessing in runtime */
     argv[0] = buffer_for_wasm;     /* pass the buffer address for WASM space */
-    argv[1] = 100;                 /* the size of buffer */
+    argv[1] = BUFFER_SIZE;                 /* the size of buffer */
     ESP_LOGI(TAG, "Call wasm function");
-    //wasm_runtime_call_wasm(exec_env, func, 2, argv);
     /* it is runtime embedder's responsibility to release the memory,
        unless the WASM app will free the passed pointer in its code */
-    //wasm_runtime_module_free(wasm_module_inst, buffer_for_wasm);
     
-    if (!(func = wasm_runtime_lookup_function(wasm_module_inst, "get_msg",
+    if (!(func = wasm_runtime_lookup_function(wasm_module_inst, "link_msg_buffer",
                                                NULL))) {
         printf(
-            "The wasm function get_msg wasm function is not found.\n");
+            "The wasm function link_msg_buffer wasm function is not found.\n");
         goto fail;
     }
 
     if (wasm_runtime_call_wasm(exec_env, func, 2, argv)) {
-        printf("Native finished calling wasm function: get_msg, "
+        printf("Native finished calling wasm function: link_msg_buffer, "
                "returned a formatted string: %s\n",
-               buffer);
+               wasm_buffer);
     }
     else {
-        printf("call wasm function get_msg failed. error: %s\n",
+        printf("call wasm function link_msg_buffer failed. error: %s\n",
                wasm_runtime_get_exception(wasm_module_inst));
         goto fail;
     }
 
-    ESP_LOGI(TAG, "Changing buffer");
-    strncpy(buffer, "apple", 100);
+    while (true){
+        ESP_LOGI(TAG, "run main() of the application");
+        ret = app_instance_main(wasm_module_inst);
+        assert(!ret);
+        vTaskDelay(20 / portTICK_PERIOD_MS);
+        if (wasm_app_delay){
+            vTaskDelay(10 / portTICK_PERIOD_MS);
+        }       
 
-    
-    ESP_LOGI(TAG, "run main() of the application");
-    ret = app_instance_main(wasm_module_inst);
-    assert(!ret);
+    }
+
 
     wasm_runtime_module_free(wasm_module_inst, buffer_for_wasm);
     
@@ -478,19 +520,6 @@ void * iwasm_main(void *arg)
     ESP_LOGI(TAG, "Deinstantiate WASM runtime");
     wasm_runtime_deinstantiate(wasm_module_inst);
 
-fail2interp:
-    /* unload the module */
-    ESP_LOGI(TAG, "Unload WASM module");
-    wasm_runtime_unload(wasm_module);
-    return NULL;
-
-fail1interp:
-
-    /* destroy runtime environment */
-    ESP_LOGI(TAG, "Destroy WASM runtime");
-    wasm_runtime_destroy();
-
-    return NULL;
 fail:
     if (exec_env)
         wasm_runtime_destroy_exec_env(exec_env);
@@ -499,19 +528,28 @@ fail:
             wasm_runtime_module_free(wasm_module_inst, buffer_for_wasm);}
         wasm_runtime_deinstantiate(wasm_module_inst);
     }
-    if (wasm_module)
+    if (wasm_module){
+        /* unload the module */
+        ESP_LOGI(TAG, "Unload WASM module");
         wasm_runtime_unload(wasm_module);
-    if (buffer)
-        BH_FREE(buffer);
+    }
+    if (wasm_buffer)
+        BH_FREE(wasm_buffer);
+
+    /* destroy runtime environment */
+    ESP_LOGI(TAG, "Destroy WASM runtime");
     wasm_runtime_destroy();
     return NULL;
-
-
-
 }
 
+/**
+ * @brief Creates a FreeRTOS task for sending and receiving to and from CAN Controller and creates a pthread to run WASM app
+ * 
+ * In ESP-IDF, a pthread is just a wrapper on FreeRTOS
+*/
 extern "C" int app_main(void)
 {
+    /* Create task */
     esp_err_t result = ESP_OK;
     ESP_LOGV(TAG, "create task");
     xTaskCreate(
@@ -529,14 +567,14 @@ extern "C" int app_main(void)
         goto err_out;
     }
 
-    //wasm task must run on a pthread - just a wrapper on FreeRTOS
+    /* Create pthread */
     pthread_t t;
     int res;
 
     pthread_attr_t tattr;
     pthread_attr_init(&tattr);
     pthread_attr_setdetachstate(&tattr, PTHREAD_CREATE_JOINABLE);
-    pthread_attr_setstacksize(&tattr, 4096);
+    pthread_attr_setstacksize(&tattr, PTHREAD_STACK_SIZE);
 
     res = pthread_create(&t, &tattr, iwasm_main, (void *)NULL);
     assert(res == 0);
