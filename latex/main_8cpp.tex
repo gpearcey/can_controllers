@@ -34,35 +34,35 @@ Include dependency graph for main.\+cpp\+:\nopagebreak
 \doxysubsection*{Macros}
 \begin{DoxyCompactItemize}
 \item 
-\#define \mbox{\hyperlink{main_8cpp_ad16f1d8569e5ca70557cb0a89a1c59aa}{NATIVE\+\_\+\+STACK\+\_\+\+SIZE}}~(4$\ast$1024)
+\mbox{\Hypertarget{main_8cpp_ad16f1d8569e5ca70557cb0a89a1c59aa}\label{main_8cpp_ad16f1d8569e5ca70557cb0a89a1c59aa}} 
+\#define {\bfseries NATIVE\+\_\+\+STACK\+\_\+\+SIZE}~(4$\ast$1024)
 \end{DoxyCompactItemize}
 \doxysubsection*{Functions}
 \begin{DoxyCompactItemize}
 \item 
 \mbox{\Hypertarget{main_8cpp_acff9f1bcfeef64616aa107371150bf9a}\label{main_8cpp_acff9f1bcfeef64616aa107371150bf9a}} 
-t\+NMEA2000\+\_\+esp32 {\bfseries NMEA2000} (GPIO\+\_\+\+NUM\+\_\+32, GPIO\+\_\+\+NUM\+\_\+34)
-\item 
+t\+NMEA2000\+\_\+esp32 \mbox{\hyperlink{main_8cpp_acff9f1bcfeef64616aa107371150bf9a}{NMEA2000}} (GPIO\+\_\+\+NUM\+\_\+32, GPIO\+\_\+\+NUM\+\_\+34)
+\begin{DoxyCompactList}\small\item\em Creates a NMEA2000 Object set to GPIO 32 (TX), and GPIO 32 (RX) \end{DoxyCompactList}\item 
 void \mbox{\hyperlink{main_8cpp_a955ad07241382211a8efdeaa2307443a}{Handle\+NMEA2000\+Msg}} (const t\+N2k\+Msg \&N2k\+Msg)
 \begin{DoxyCompactList}\small\item\em Creates a \mbox{\hyperlink{structNMEA__msg}{NMEA\+\_\+msg}} object and adds it to the received messages queue. \end{DoxyCompactList}\item 
-\mbox{\Hypertarget{main_8cpp_ac9bab62089a524c93c540021803c6009}\label{main_8cpp_ac9bab62089a524c93c540021803c6009}} 
-std\+::string {\bfseries nmea\+\_\+to\+\_\+string} (\mbox{\hyperlink{structNMEA__msg}{NMEA\+\_\+msg}} \&msg)
-\item 
+std\+::string \mbox{\hyperlink{main_8cpp_ac9bab62089a524c93c540021803c6009}{nmea\+\_\+to\+\_\+string}} (\mbox{\hyperlink{structNMEA__msg}{NMEA\+\_\+msg}} \&msg)
+\begin{DoxyCompactList}\small\item\em converts a \mbox{\hyperlink{structNMEA__msg}{NMEA\+\_\+msg}} to a string \end{DoxyCompactList}\item 
+void \mbox{\hyperlink{main_8cpp_a09ae4e0a7dffdbfb9a499ce4874a5778}{vector\+To\+Char\+Array}} (const std\+::vector$<$ uint8\+\_\+t $>$ \&data\+\_\+vec, unsigned char(\&data\+\_\+char\+\_\+arr)\mbox{[}223\mbox{]})
+\begin{DoxyCompactList}\small\item\em Fills a char array with values from a vector. \end{DoxyCompactList}\item 
+void \mbox{\hyperlink{main_8cpp_a54c259f26c52ff03f9ab1d90ba06dadf}{Print\+Str}} (wasm\+\_\+exec\+\_\+env\+\_\+t exec\+\_\+env, uint8\+\_\+t $\ast$input, int32\+\_\+t length)
+\begin{DoxyCompactList}\small\item\em prints a uint8\+\_\+t array to terminal \end{DoxyCompactList}\item 
+void \mbox{\hyperlink{main_8cpp_af074f4615d09245f6b9582f613e1e570}{Print\+Int32}} (wasm\+\_\+exec\+\_\+env\+\_\+t exec\+\_\+env, int32\+\_\+t number, int32\+\_\+t hex)
+\begin{DoxyCompactList}\small\item\em prints a integer to terminal \end{DoxyCompactList}\item 
 \mbox{\Hypertarget{main_8cpp_ac689e9c910be33f383bb0d6421459c87}\label{main_8cpp_ac689e9c910be33f383bb0d6421459c87}} 
 int32\+\_\+t {\bfseries Get\+Msg} (wasm\+\_\+exec\+\_\+env\+\_\+t exec\+\_\+env)
 \item 
 \mbox{\Hypertarget{main_8cpp_a0f2304279f04a46457288b6d28fea042}\label{main_8cpp_a0f2304279f04a46457288b6d28fea042}} 
 int32\+\_\+t {\bfseries Send\+Msg} (wasm\+\_\+exec\+\_\+env\+\_\+t exec\+\_\+env, int32\+\_\+t controller\+\_\+number, int32\+\_\+t priority, int32\+\_\+t PGN, int32\+\_\+t source, uint8\+\_\+t $\ast$data, int32\+\_\+t data\+\_\+length\+\_\+bytes)
 \item 
-void \mbox{\hyperlink{main_8cpp_a09ae4e0a7dffdbfb9a499ce4874a5778}{vector\+To\+Char\+Array}} (const std\+::vector$<$ uint8\+\_\+t $>$ \&data\+\_\+vec, unsigned char(\&data\+\_\+char\+\_\+arr)\mbox{[}223\mbox{]})
-\begin{DoxyCompactList}\small\item\em Fills a char array with values from a vector. \end{DoxyCompactList}\item 
 void \mbox{\hyperlink{main_8cpp_ac894d2ff5b41ee9ca73d7adb560d9416}{Send\+N2k\+Msg}} ()
 \begin{DoxyCompactList}\small\item\em takes mesages out of controller queue and sends message out on that controller \end{DoxyCompactList}\item 
 void \mbox{\hyperlink{main_8cpp_abcaa9f46955f9eaa3af477ed9e5c9d53}{N2\+K\+\_\+task}} (void $\ast$pv\+Parameters)
-\begin{DoxyCompactList}\small\item\em Free\+RTOS task for sending and receiving messages from CAN controller. \end{DoxyCompactList}\item 
-void \mbox{\hyperlink{main_8cpp_a54c259f26c52ff03f9ab1d90ba06dadf}{Print\+Str}} (wasm\+\_\+exec\+\_\+env\+\_\+t exec\+\_\+env, uint8\+\_\+t $\ast$input, int32\+\_\+t length)
-\begin{DoxyCompactList}\small\item\em prints a uint8\+\_\+t array to terminal \end{DoxyCompactList}\item 
-void \mbox{\hyperlink{main_8cpp_af074f4615d09245f6b9582f613e1e570}{Print\+Int32}} (wasm\+\_\+exec\+\_\+env\+\_\+t exec\+\_\+env, int32\+\_\+t number, int32\+\_\+t hex)
-\begin{DoxyCompactList}\small\item\em prints a integer to terminal \end{DoxyCompactList}\item 
+\begin{DoxyCompactList}\small\item\em Free\+RTOS task for sending and receiving messages from CAN controller with NMEA2000 library. \end{DoxyCompactList}\item 
 void $\ast$ \mbox{\hyperlink{main_8cpp_a3a1ac44c68d18bdde17fd90634a71222}{iwasm\+\_\+main}} (void $\ast$arg)
 \begin{DoxyCompactList}\small\item\em WASM pthread to host wasm app. \end{DoxyCompactList}\item 
 int \mbox{\hyperlink{main_8cpp_a144c9a97815e4b794fd4352aedd33695}{app\+\_\+main}} (void)
@@ -74,11 +74,11 @@ int \mbox{\hyperlink{main_8cpp_a144c9a97815e4b794fd4352aedd33695}{app\+\_\+main}
 char $\ast$ \mbox{\hyperlink{main_8cpp_a48df899df614d98285854d93c794813b}{wasm\+\_\+buffer}} = NULL
 \begin{DoxyCompactList}\small\item\em buffer allocated for wasm app, used to hold received messages so app can access them \end{DoxyCompactList}\item 
 \mbox{\Hypertarget{main_8cpp_a8cce0fd0915d585bc2600a9520e6c9e9}\label{main_8cpp_a8cce0fd0915d585bc2600a9520e6c9e9}} 
-std\+::queue$<$ \mbox{\hyperlink{structNMEA__msg}{NMEA\+\_\+msg}} $>$ {\bfseries received\+\_\+msgs\+\_\+q}
-\item 
+std\+::queue$<$ \mbox{\hyperlink{structNMEA__msg}{NMEA\+\_\+msg}} $>$ \mbox{\hyperlink{main_8cpp_a8cce0fd0915d585bc2600a9520e6c9e9}{received\+\_\+msgs\+\_\+q}}
+\begin{DoxyCompactList}\small\item\em Queue that stores all messages received on all controllers. \end{DoxyCompactList}\item 
 \mbox{\Hypertarget{main_8cpp_aab2ee5435f26d13831ec405df0a18ed6}\label{main_8cpp_aab2ee5435f26d13831ec405df0a18ed6}} 
-std\+::queue$<$ \mbox{\hyperlink{structNMEA__msg}{NMEA\+\_\+msg}} $>$ {\bfseries ctrl0\+\_\+q}
-\end{DoxyCompactItemize}
+std\+::queue$<$ \mbox{\hyperlink{structNMEA__msg}{NMEA\+\_\+msg}} $>$ \mbox{\hyperlink{main_8cpp_aab2ee5435f26d13831ec405df0a18ed6}{ctrl0\+\_\+q}}
+\begin{DoxyCompactList}\small\item\em Queue that stores messages to be sent out on controller 0. \end{DoxyCompactList}\end{DoxyCompactItemize}
 
 
 \doxysubsection{Detailed Description}
@@ -87,15 +87,6 @@ Contains Free\+RTOS tasks and pthread for sending and receiving messages between
 \begin{DoxyRefDesc}{Todo}
 \item[\mbox{\hyperlink{todo__todo000001}{Todo}}]convert relavent ESP\+\_\+\+LOGI to ESP\+\_\+\+LOGD \end{DoxyRefDesc}
 
-
-\doxysubsection{Macro Definition Documentation}
-\mbox{\Hypertarget{main_8cpp_ad16f1d8569e5ca70557cb0a89a1c59aa}\label{main_8cpp_ad16f1d8569e5ca70557cb0a89a1c59aa}} 
-\index{main.cpp@{main.cpp}!NATIVE\_STACK\_SIZE@{NATIVE\_STACK\_SIZE}}
-\index{NATIVE\_STACK\_SIZE@{NATIVE\_STACK\_SIZE}!main.cpp@{main.cpp}}
-\doxysubsubsection{\texorpdfstring{NATIVE\_STACK\_SIZE}{NATIVE\_STACK\_SIZE}}
-{\footnotesize\ttfamily \#define NATIVE\+\_\+\+STACK\+\_\+\+SIZE~(4$\ast$1024)}
-
-Web\+Assembly App 
 
 \doxysubsection{Function Documentation}
 \mbox{\Hypertarget{main_8cpp_a144c9a97815e4b794fd4352aedd33695}\label{main_8cpp_a144c9a97815e4b794fd4352aedd33695}} 
@@ -119,7 +110,7 @@ In ESP-\/\+IDF, a pthread is just a wrapper on Free\+RTOS \mbox{\Hypertarget{mai
 Creates a \mbox{\hyperlink{structNMEA__msg}{NMEA\+\_\+msg}} object and adds it to the received messages queue. 
 
 \begin{DoxyRefDesc}{Todo}
-\item[\mbox{\hyperlink{todo__todo000005}{Todo}}]handle out of range data \end{DoxyRefDesc}
+\item[\mbox{\hyperlink{todo__todo000006}{Todo}}]handle out of range data \end{DoxyRefDesc}
 
 \begin{DoxyParams}{Parameters}
 {\em N2k\+Msg} & Reference to the N2\+KMs being handled \\
@@ -153,15 +144,35 @@ Sets up the wasm environment. Links native function to be exported. Calls wasm a
 
 
 
-Free\+RTOS task for sending and receiving messages from CAN controller. 
+Free\+RTOS task for sending and receiving messages from CAN controller with NMEA2000 library. 
 
 \begin{DoxyRefDesc}{Todo}
-\item[\mbox{\hyperlink{todo__todo000004}{Todo}}]frame buffer should be 32 -\/ see if this works \end{DoxyRefDesc}
+\item[\mbox{\hyperlink{todo__todo000005}{Todo}}]frame buffer should be 32 -\/ see if this works \end{DoxyRefDesc}
 
 \begin{DoxyParams}{Parameters}
 {\em pv\+Parameters} & \\
 \hline
 \end{DoxyParams}
+\mbox{\Hypertarget{main_8cpp_ac9bab62089a524c93c540021803c6009}\label{main_8cpp_ac9bab62089a524c93c540021803c6009}} 
+\index{main.cpp@{main.cpp}!nmea\_to\_string@{nmea\_to\_string}}
+\index{nmea\_to\_string@{nmea\_to\_string}!main.cpp@{main.cpp}}
+\doxysubsubsection{\texorpdfstring{nmea\_to\_string()}{nmea\_to\_string()}}
+{\footnotesize\ttfamily std\+::string nmea\+\_\+to\+\_\+string (\begin{DoxyParamCaption}\item[{\mbox{\hyperlink{structNMEA__msg}{NMEA\+\_\+msg}} \&}]{msg }\end{DoxyParamCaption})}
+
+
+
+converts a \mbox{\hyperlink{structNMEA__msg}{NMEA\+\_\+msg}} to a string 
+
+\begin{DoxyRefDesc}{Todo}
+\item[\mbox{\hyperlink{todo__todo000002}{Todo}}]make sure that if pgn is only 4 digits in hex it still takes 5 \end{DoxyRefDesc}
+
+\begin{DoxyParams}[1]{Parameters}
+\mbox{\texttt{ in}}  & {\em msg} & reference to a \mbox{\hyperlink{structNMEA__msg}{NMEA\+\_\+msg}} object \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+std\+::string representing the message 
+\end{DoxyReturn}
 \mbox{\Hypertarget{main_8cpp_af074f4615d09245f6b9582f613e1e570}\label{main_8cpp_af074f4615d09245f6b9582f613e1e570}} 
 \index{main.cpp@{main.cpp}!PrintInt32@{PrintInt32}}
 \index{PrintInt32@{PrintInt32}!main.cpp@{main.cpp}}
@@ -215,7 +226,7 @@ Native function to be exported to WASM app. Used for debugging purposes.
 takes mesages out of controller queue and sends message out on that controller 
 
 \begin{DoxyRefDesc}{Todo}
-\item[\mbox{\hyperlink{todo__todo000003}{Todo}}]update time to take time from message 
+\item[\mbox{\hyperlink{todo__todo000004}{Todo}}]update time to take time from message 
 
 update for multiple controllers\end{DoxyRefDesc}
 \mbox{\Hypertarget{main_8cpp_a09ae4e0a7dffdbfb9a499ce4874a5778}\label{main_8cpp_a09ae4e0a7dffdbfb9a499ce4874a5778}} 
@@ -229,7 +240,7 @@ update for multiple controllers\end{DoxyRefDesc}
 Fills a char array with values from a vector. 
 
 \begin{DoxyRefDesc}{Todo}
-\item[\mbox{\hyperlink{todo__todo000002}{Todo}}]add in error checking if data $>$ 223 \end{DoxyRefDesc}
+\item[\mbox{\hyperlink{todo__todo000003}{Todo}}]add in error checking if data $>$ 223 \end{DoxyRefDesc}
 
 \begin{DoxyParams}[1]{Parameters}
 \mbox{\texttt{ in}}  & {\em data\+\_\+vec} & \\

@@ -71,8 +71,8 @@ void vectorToCharArray(const std::vector<uint8_t>& data_vec, unsigned char (&dat
 // Variables
 //-----------------------------------------------------------------------------------------------------------------------------
 char * wasm_buffer = NULL;  //!< buffer allocated for wasm app, used to hold received messages so app can access them
-std::queue<NMEA_msg> received_msgs_q; //! Queue that stores all messages received on all controllers
-std::queue<NMEA_msg> ctrl0_q; //! Queue that stores messages to be sent out on controller 0
+std::queue<NMEA_msg> received_msgs_q; //!< Queue that stores all messages received on all controllers
+std::queue<NMEA_msg> ctrl0_q; //!< Queue that stores messages to be sent out on controller 0
 
 //-------------------------------------------------------------------------------------------------------------------------------
 // Native Functions to Export to WASM App
@@ -122,6 +122,7 @@ void PrintInt32(wasm_exec_env_t exec_env,int32_t number,int32_t hex){
  * This function is exported to the WASM app to be called from app to receive a message. 
  * Converts a NMEA_msg object into a string which is placed in the buffer.
  * @param exec_env
+ * @todo maybe don't delete the message right away, hould only delete if it was sent sucessfully. 
  * \return 1 if message converted successfully, 0 if not.
 */
 int32_t GetMsg(wasm_exec_env_t exec_env){
@@ -131,7 +132,7 @@ int32_t GetMsg(wasm_exec_env_t exec_env){
   }
   NMEA_msg msg = received_msgs_q.front();
   printf("about to add msg with pgn %u \n", msg.PGN);
-  received_msgs_q.pop();//TODO - probably don't delete it here in case send doesn't work properly
+  received_msgs_q.pop();//TODO
   std::string str_msg = nmea_to_string(msg);
         printf(" string form of message: ");
   printf(str_msg.c_str());
@@ -262,7 +263,7 @@ void SendN2kMsg() {
 }
 
 /**
- * @brief FreeRTOS task for sending and receiving messages from CAN controller
+ * @brief FreeRTOS task for sending and receiving messages from CAN controller with NMEA2000 library
  * 
  * @todo frame buffer should be 32 - see if this works
  * @param pvParameters
