@@ -77,6 +77,9 @@ void vectorToCharArray(const std::vector<uint8_t>& data_vec, unsigned char (&dat
 char * wasm_buffer = NULL;  //!< buffer allocated for wasm app, used to hold received messages so app can access them
 std::queue<NMEA_msg> received_msgs_q; //!< Queue that stores all messages received on all controllers
 std::queue<NMEA_msg> ctrl0_q; //!< Queue that stores messages to be sent out on controller 0
+bool wasm_app_delay = true;
+int read_msg_count = 0;
+int send_msg_count = 0;
 
 //-------------------------------------------------------------------------------------------------------------------------------
 // Native Functions to Export to WASM App
@@ -117,6 +120,16 @@ void PrintInt32(wasm_exec_env_t exec_env,int32_t number,int32_t hex){
         printf("PrintInt32: %li \n", number);
     }    
     return;
+}
+
+void AddAppDelay(wasm_exec_env_t exec_env){
+    wasm_app_delay = true;
+    ESP_LOGI(TAG, "WASM Delay on");
+}
+
+void RemoveAppDelay(wasm_exec_env_t exec_env){
+    wasm_app_delay = false;
+    ESP_LOGI(TAG, "WASM Delay off");
 }
 
 
@@ -254,12 +267,15 @@ void SendN2kMsg() {
   N2kMsg.MsgTime = N2kMillis64();//TODO 
 
   if ( NMEA2000.SendMsg(N2kMsg) ) {
-    ESP_LOGI(TAG, "sent a message");
+    ESP_LOGI(TAG, "sent a message \n");
     N2kMsgSentCount++;
+    send_msg_count++;
   } else {
-    ESP_LOGI(TAG, "failed to send a message");
+    ESP_LOGI(TAG, "failed to send a message \n");
     N2kMsgFailCount++;
   }
+
+  ESP_LOGI(TAG, "Messages Read: %d, Messages Sent %d \n", read_msg_count, send_msg_count);
 }
 
 /**
@@ -318,6 +334,7 @@ void HandleNMEA2000Msg(const tN2kMsg &N2kMsg) {
   }
 
   received_msgs_q.push(msg);
+  read_msg_count++;
   ESP_LOGI(TAG, "added msg to received queue\n");
 }
 
@@ -379,6 +396,18 @@ void * iwasm_main(void *arg)
             reinterpret_cast<void*>(PrintInt32),    // the native function pointer
             "(ii)",  // the function prototype signature, avoid to use i32
             NULL        // attachment is NULL
+        },
+        {
+            "AddAppDelay",
+            reinterpret_cast<void*>(AddAppDelay), 
+            "()",
+            NULL
+        },
+        {
+            "RemoveAppDelay",
+            reinterpret_cast<void*>(RemoveAppDelay), 
+            "()",
+            NULL
         },
         {
             "SendMsg", // the name of WASM function name
@@ -477,7 +506,10 @@ void * iwasm_main(void *arg)
         ESP_LOGI(TAG, "run main() of the application");
         ret = app_instance_main(wasm_module_inst);
         assert(!ret);
-        vTaskDelay(100 / portTICK_PERIOD_MS);
+        vTaskDelay(20 / portTICK_PERIOD_MS);
+        if (wasm_app_delay){
+            vTaskDelay(10 / portTICK_PERIOD_MS);
+        }       
 
     }
 
