@@ -61,6 +61,7 @@ static const char* TAG = "main.cpp";
 tNMEA2000_esp32c6 NMEA2000(GPIO_NUM_4, GPIO_NUM_5);
 
 static TaskHandle_t N2K_task_handle = NULL;
+static TaskHandle_t N2K_receive_task_handle = NULL;
 
 static unsigned long N2kMsgSentCount=0;
 static unsigned long N2kMsgFailCount=0;
@@ -279,6 +280,18 @@ void SendN2kMsg() {
   ESP_LOGI(TAG, "Messages Read: %d, Messages Sent %d \n", read_msg_count, send_msg_count);
 }
 
+void N2K_receive_task(void *pvParameters)
+{
+
+
+    for (;;)
+    {
+        ESP_LOGI(TAG, "READING CAN FRAME");
+        NMEA2000.CAN_read_frame();
+    }
+    vTaskDelete(NULL); // should never get here...
+}
+
 /**
  * @brief FreeRTOS task for sending and receiving messages from CAN controller with NMEA2000 library
  * 
@@ -290,19 +303,26 @@ void N2K_task(void *pvParameters)
     ESP_LOGI(TAG, "Starting task");
     
     NMEA2000.SetN2kCANMsgBufSize(8);
+    ESP_LOGI(TAG, "Starting task");
     NMEA2000.SetN2kCANReceiveFrameBufSize(250);
-    NMEA2000.EnableForward(false);                
+    ESP_LOGI(TAG, "Starting task");
+    NMEA2000.EnableForward(false);         
+    ESP_LOGI(TAG, "Starting task");       
 
     NMEA2000.SetMsgHandler(HandleNMEA2000Msg);
-
+    ESP_LOGI(TAG, "Starting task");
     NMEA2000.SetMode(tNMEA2000::N2km_ListenAndSend);
+    ESP_LOGI(TAG, "Starting task");
 
     NMEA2000.Open();
+    ESP_LOGI(TAG,"about to loop");
     for (;;)
     {
         // this runs everytime the task runs:
       SendN2kMsg();
+      ESP_LOGI(TAG,"about to call parse");
       NMEA2000.ParseMessages();    
+      ESP_LOGI(TAG,"called parse");
     }
     vTaskDelete(NULL); // should never get here...
 }
@@ -507,10 +527,10 @@ void * iwasm_main(void *arg)
         ESP_LOGI(TAG, "run main() of the application");
         ret = app_instance_main(wasm_module_inst);
         assert(!ret);
-        vTaskDelay(20 / portTICK_PERIOD_MS);
-        if (wasm_app_delay){
-            vTaskDelay(10 / portTICK_PERIOD_MS);
-        }       
+        vTaskDelay(100 / portTICK_PERIOD_MS);
+        //if (wasm_app_delay){
+        //    vTaskDelay(10 / portTICK_PERIOD_MS);
+        //}       
 
     }
 
@@ -562,6 +582,24 @@ extern "C" int app_main(void)
         &N2K_task_handle      // Optional pass back task handle
     );
     if (N2K_task_handle == NULL)
+    {
+        ESP_LOGE(TAG, "Unable to create task.");
+        result = ESP_ERR_NO_MEM;
+        goto err_out;
+    }
+
+    /* Create task */
+    //esp_err_t result = ESP_OK;
+    ESP_LOGV(TAG, "create task");
+    xTaskCreate(
+        &N2K_receive_task,            // Pointer to the task entry function.
+        "Reading_task",           // A descriptive name for the task for debugging.
+        3072,                 // size of the task stack in bytes.
+        NULL,                 // Optional pointer to pvParameters
+        tskIDLE_PRIORITY, // priority at which the task should run
+        &N2K_receive_task_handle      // Optional pass back task handle
+    );
+    if (N2K_receive_task_handle == NULL)
     {
         ESP_LOGE(TAG, "Unable to create task.");
         result = ESP_ERR_NO_MEM;
