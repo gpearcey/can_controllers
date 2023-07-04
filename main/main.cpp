@@ -56,10 +56,13 @@
 static const char* TAG = "main.cpp";
 
 /**
- * @brief Creates a NMEA2000 Object set to (TX),(RX)
+ * @brief Creates a NMEA2000 Object
+ * 
+ * NMEA2000(TX_PIN, RX_PIN)
 */
 tNMEA2000_esp32c6 NMEA2000(GPIO_NUM_4, GPIO_NUM_5);
 
+// Task Handles
 static TaskHandle_t N2K_task_handle = NULL;
 static TaskHandle_t N2K_receive_task_handle = NULL;
 
@@ -254,6 +257,7 @@ void vectorToCharArray(const std::vector<uint8_t>& data_vec, unsigned char (&dat
 */
 void SendN2kMsg() {
   if (ctrl0_q.empty()){
+    ESP_LOGI(TAG, "No messages in send queue to send");
     return;
   }
   NMEA_msg msg = ctrl0_q.front();
@@ -280,49 +284,47 @@ void SendN2kMsg() {
   ESP_LOGI(TAG, "Messages Read: %d, Messages Sent %d \n", read_msg_count, send_msg_count);
 }
 
-void N2K_receive_task(void *pvParameters)
-{
-
-
+/**
+ * @brief FreeRTOS task for receiving messages from CAN controller
+ * 
+ * @param pvParameters
+ * 
+ * NMEA2000 Library is designed so that message receiving and sending is handled within the same task. 
+ * In the NMEA2000_ESP32 library, this is made possible by letting the twai rx interrupt handle receiving CAN frames. 
+ * In this library, the receiving is separated from the processing and sending of messages. This is done because 
+ * I was unable to trigger recieving a CAN frame from the twai rx interrupt, so CAN_read_frame() must be called explicitly here. 
+*/
+void N2K_receive_task(void *pvParameters){
     for (;;)
     {
-        ESP_LOGI(TAG, "READING CAN FRAME");
         NMEA2000.CAN_read_frame();
     }
     vTaskDelete(NULL); // should never get here...
 }
 
 /**
- * @brief FreeRTOS task for sending and receiving messages from CAN controller with NMEA2000 library
+ * @brief FreeRTOS task for processing and sending messages from CAN controller with NMEA2000 library
  * 
  * @todo frame buffer should be 32 - see if this works
  * @param pvParameters
 */
 void N2K_task(void *pvParameters)
-{
-    ESP_LOGI(TAG, "Starting task");
-    
+{   
+    ESP_LOGI(TAG, "Starting N2k_task");
     NMEA2000.SetN2kCANMsgBufSize(8);
-    ESP_LOGI(TAG, "Starting task");
     NMEA2000.SetN2kCANReceiveFrameBufSize(250);
-    ESP_LOGI(TAG, "Starting task");
-    NMEA2000.EnableForward(false);         
-    ESP_LOGI(TAG, "Starting task");       
+    NMEA2000.EnableForward(false);               
 
     NMEA2000.SetMsgHandler(HandleNMEA2000Msg);
-    ESP_LOGI(TAG, "Starting task");
     NMEA2000.SetMode(tNMEA2000::N2km_ListenAndSend);
-    ESP_LOGI(TAG, "Starting task");
 
     NMEA2000.Open();
-    ESP_LOGI(TAG,"about to loop");
+
     for (;;)
     {
         // this runs everytime the task runs:
       SendN2kMsg();
-      ESP_LOGI(TAG,"about to call parse");
       NMEA2000.ParseMessages();    
-      ESP_LOGI(TAG,"called parse");
     }
     vTaskDelete(NULL); // should never get here...
 }
@@ -413,10 +415,10 @@ void * iwasm_main(void *arg)
             NULL        // attachment is NULL
         },
         {
-            "PrintInt32", // the name of WASM function name
-            reinterpret_cast<void*>(PrintInt32),    // the native function pointer
-            "(ii)",  // the function prototype signature, avoid to use i32
-            NULL        // attachment is NULL
+            "PrintInt32",
+            reinterpret_cast<void*>(PrintInt32),   
+            "(ii)", 
+            NULL      
         },
         {
             "AddAppDelay",
@@ -431,16 +433,16 @@ void * iwasm_main(void *arg)
             NULL
         },
         {
-            "SendMsg", // the name of WASM function name
-            reinterpret_cast<void*>(SendMsg),    // the native function pointer
-            "(iiii*~)i",  // the function prototype signature, avoid to use i32
-            NULL        // attachment is NULL
+            "SendMsg",
+            reinterpret_cast<void*>(SendMsg),   
+            "(iiii*~)i",
+            NULL    
         },
         {
-            "GetMsg", // the name of WASM function name
-            reinterpret_cast<void*>(GetMsg),    // the native function pointer
-            "()i",  // the function prototype signature, avoid to use i32
-            NULL        // attachment is NULL
+            "GetMsg", 
+            reinterpret_cast<void*>(GetMsg),   
+            "()i", 
+            NULL  
         }
     };
 #if WASM_ENABLE_GLOBAL_HEAP_POOL == 0
@@ -527,9 +529,9 @@ void * iwasm_main(void *arg)
         ESP_LOGI(TAG, "run main() of the application");
         ret = app_instance_main(wasm_module_inst);
         assert(!ret);
-        vTaskDelay(100 / portTICK_PERIOD_MS);
+        vTaskDelay(20 / portTICK_PERIOD_MS);
         //if (wasm_app_delay){
-        //    vTaskDelay(10 / portTICK_PERIOD_MS);
+        //    vTaskDelay(100 / portTICK_PERIOD_MS);
         //}       
 
     }
@@ -589,7 +591,6 @@ extern "C" int app_main(void)
     }
 
     /* Create task */
-    //esp_err_t result = ESP_OK;
     ESP_LOGV(TAG, "create task");
     xTaskCreate(
         &N2K_receive_task,            // Pointer to the task entry function.
