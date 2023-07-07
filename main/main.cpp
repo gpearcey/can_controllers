@@ -285,6 +285,13 @@ void SendN2kMsg() {
   }
 }
 
+/**
+ * @brief Retrieves twai status and alerts
+ * 
+ * Used to display information regarding queue's filling up, and how many messages have been sent/received.
+ * 
+ * @param[in] TAG
+*/
 void GetStatus(const char* TAG){
     uint32_t alerts = 0;
     NMEA2000.ReadAlerts(alerts, pdMS_TO_TICKS(1));
