@@ -1,4 +1,4 @@
-rm -r doc/
-mkdir doc/
-cd doc/
+rm -r docs/
+mkdir docs/
+cd docs/
 doxygen ../Doxyfile
