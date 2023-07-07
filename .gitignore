@@ -4,3 +4,4 @@ sdkconfig
 sdkconfig*
 nmea_attack.h
 latex/
+html/
