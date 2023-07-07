@@ -51,7 +51,7 @@
 #define PTHREAD_STACK_SIZE              4096
 #define MAX_DATA_LENGTH_BTYES           223
 #define BUFFER_SIZE                     (10 + 223*2) //10 bytes for id, 223*2 bytes for data
-#define MY_ESP_LOG_LEVEL                  ESP_LOG_INFO
+#define MY_ESP_LOG_LEVEL                  ESP_LOG_INFO // the log level for this file
 
 // Tag for ESP logging
 static const char* TAG_TWAI_TX = "TWAI_SEND";
@@ -153,7 +153,7 @@ void RemoveAppDelay(wasm_exec_env_t exec_env){
 */
 int32_t GetMsg(wasm_exec_env_t exec_env){
   if (received_msgs_q.empty()){
-    ESP_LOGI(TAG_WASM, "No messages available to send to app\n");
+    ESP_LOGD(TAG_WASM, "No messages available to send to app\n");
     return 0;
   }
   NMEA_msg msg = received_msgs_q.front();
@@ -283,24 +283,21 @@ void SendN2kMsg() {
     ESP_LOGW(TAG_TWAI_TX, "failed to send a message \n");
     N2kMsgFailCount++;
   }
-
-  ESP_LOGI(TAG_TWAI_TX, "Messages Read: %d, Messages Sent %d \n", read_msg_count, send_msg_count);
 }
 
 void GetStatus(const char* TAG){
-    printf("\n");
     uint32_t alerts = 0;
-    NMEA2000.ReadAlerts(alerts, pdMS_TO_TICKS(10));
+    NMEA2000.ReadAlerts(alerts, pdMS_TO_TICKS(1));
     if (alerts & TWAI_ALERT_RX_QUEUE_FULL){
         ESP_LOGW(TAG, "TWAI rx queue full");
     } 
     twai_status_info_t status;
     NMEA2000.GetTwaiStatus(status);
-    ESP_LOGI(TAG, "Msgs queued for transmission: %" PRIu32" Unread messages in rx queue: %" PRIu32, status.msgs_to_tx, status.msgs_to_rx);
-    ESP_LOGI(TAG, "Msgs lost due to RX FIFO overrun: %" PRIu32, status.rx_overrun_count);
+    //ESP_LOGI(TAG, "Msgs queued for transmission: %" PRIu32" Unread messages in rx queue: %" PRIu32, status.msgs_to_tx, status.msgs_to_rx);
+    //ESP_LOGI(TAG, "Msgs lost due to RX FIFO overrun: %" PRIu32, status.rx_overrun_count);
     ESP_LOGI(TAG, "Msgs lost due to full RX queue: %" PRIu32, status.rx_missed_count);
-    printf("\n");
-
+    ESP_LOGI(TAG, "Messages Read: %d, Messages Sent %d", read_msg_count, send_msg_count);
+    //ESP_LOGI(TAG, "Received Messages queue size: %d \n", received_msgs_q.size());
 }
 /**
  * @brief FreeRTOS task for receiving messages from CAN controller
@@ -385,6 +382,7 @@ void HandleNMEA2000Msg(const tN2kMsg &N2kMsg) {
   }
 
   received_msgs_q.push(msg);
+  ESP_LOGW(TAG_TWAI_TX, "Received messages queue size %d", received_msgs_q.size());
   read_msg_count++;
   ESP_LOGD("Message Handle", "added msg to received queue\n");
 }
