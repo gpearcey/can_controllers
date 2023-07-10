@@ -54,8 +54,7 @@
 #define MAX_DATA_LENGTH_BTYES           223
 #define BUFFER_SIZE                     (10 + 223*2) //10 bytes for id, 223*2 bytes for data
 #define MY_ESP_LOG_LEVEL                  ESP_LOG_INFO // the log level for this file
-//#define portCONFIGURE_TIMER_FOR_RUN_TIME_STATS()
-//#define portGET_RUN_TIME_COUNTER_VALUE()
+
 #define STATS_TASK_PRIO     tskIDLE_PRIORITY //3
 #define STATS_TICKS         pdMS_TO_TICKS(1000)
 #define ARRAY_SIZE_OFFSET   5   //Increase this if print_real_time_stats returns ESP_ERR_INVALID_SIZE
@@ -93,11 +92,11 @@ void vectorToCharArray(const std::vector<uint8_t>& data_vec, unsigned char (&dat
 char * wasm_buffer = NULL;  //!< buffer allocated for wasm app, used to hold received messages so app can access them
 std::queue<NMEA_msg> received_msgs_q; //!< Queue that stores all messages received on all controllers
 std::queue<NMEA_msg> ctrl0_q; //!< Queue that stores messages to be sent out on controller 0
-bool wasm_app_delay = true;
-int read_msg_count = 0;
-int send_msg_count = 0;
+bool wasm_app_delay = true; //!< Used to add a conditional task delay to the pthread for the wasm app
+int read_msg_count = 0; //!< Used to track messages read
+int send_msg_count = 0; //!< Used to track messages sent
 uint32_t alerts_to_enable = TWAI_ALERT_RX_DATA | TWAI_ALERT_TX_FAILED | TWAI_ALERT_RX_QUEUE_FULL; //!< Sets which alerts to enable for TWAI controller
-char* runtime_stats_buf = NULL;
+
 //-------------------------------------------------------------------------------------------------------------------------------
 // Native Functions to Export to WASM App
 //-----------------------------------------------------------------------------------------------------------------------------
@@ -293,9 +292,25 @@ void SendN2kMsg() {
   }
 }
 
-#define STATS_TICKS         pdMS_TO_TICKS(1000)
-#define ARRAY_SIZE_OFFSET   5   //Increase this if print_real_time_stats returns ESP_ERR_INVALID_SIZE
-
+/**
+ * @brief Prints runtime and percentage for tasks and pthreads
+ * 
+ * To use this function, you need to configure some settings in menuconfig. 
+ * 
+ * You must enable FreeRTOS to collect runtime stats under 
+ * Component Config -> FreeRTOS -> Kernel -> configGENERATE_RUN_TIME_STATS
+ * 
+ * You must also choose the clock source for run time stats configured under
+ * Component Config -> FreeRTOS -> Port -> Choose the clock source for runtime stats.
+ * The esp_timer should be selected by default. 
+ * This option will affect the time unit resolution in which the statistics
+ *  are measured with respect to.
+ * 
+ * 
+ * 
+ * @param[in] xTicksToWait
+ * 
+*/
 static esp_err_t print_real_time_stats(TickType_t xTicksToWait)
 {
     TaskStatus_t *start_array = NULL, *end_array = NULL;
@@ -399,10 +414,10 @@ static esp_err_t print_real_time_stats(TickType_t xTicksToWait)
 */
 void GetStatus(const char* TAG){
     uint32_t alerts = 0;
-    //NMEA2000.ReadAlerts(alerts, pdMS_TO_TICKS(1));
-    //if (alerts & TWAI_ALERT_RX_QUEUE_FULL){
-    //    ESP_LOGW(TAG, "TWAI rx queue full");
-    //} 
+    NMEA2000.ReadAlerts(alerts, pdMS_TO_TICKS(1));
+    if (alerts & TWAI_ALERT_RX_QUEUE_FULL){
+        ESP_LOGW(TAG, "TWAI rx queue full");
+    } 
     twai_status_info_t status;
     NMEA2000.GetTwaiStatus(status);
     ESP_LOGI(TAG, "Msgs queued for transmission: %" PRIu32" Unread messages in rx queue: %" PRIu32, status.msgs_to_tx, status.msgs_to_rx);
@@ -410,13 +425,10 @@ void GetStatus(const char* TAG){
     ESP_LOGI(TAG, "Msgs lost due to full RX queue: %" PRIu32, status.rx_missed_count);
     ESP_LOGI(TAG, "Messages Read: %d, Messages Sent %d", read_msg_count, send_msg_count);
     ESP_LOGI(TAG, "Received Messages queue size: %d \n", received_msgs_q.size());
-
-    // FreeRTOS Runtime Stats:
-    //printf(runtime_stats_buf);
-
+    ESP_LOGI(TAG, "Controller 0 send queue size: %d \n", ctrl0_q.size());
 }
 /**
- * @brief FreeRTOS task for printing status message
+ * @brief Optional FreeRTOS task for printing status messages for debugging 
  * 
  * @param pvParameters
  * 
@@ -435,26 +447,7 @@ static void stats_task(void *arg)
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }
-//static void status_task(void *arg)
-//{
-//    //xSemaphoreTake(sync_stats_task, portMAX_DELAY);
-//
-//    //Start all the spin tasks
-//    //for (int i = 0; i < NUM_OF_SPIN_TASKS; i++) {
-//    //    xSemaphoreGive(sync_spin_task);
-//    //}
-//
-//    //Print real time stats periodically
-//    while (1) {
-//        printf("\n\nGetting real time stats over %"PRIu32" ticks\n", STATS_TICKS);
-//        //if (print_real_time_stats(STATS_TICKS) == ESP_OK) {
-//        //    printf("Real time stats obtained\n");
-//        //} else {
-//        //    printf("Error getting real time stats\n");
-//        //}
-//        vTaskDelay(pdMS_TO_TICKS(1000));
-//    }
-//}
+
 /**
  * @brief FreeRTOS task for receiving messages from CAN controller
  * 
@@ -467,28 +460,20 @@ static void stats_task(void *arg)
 */
 void N2K_receive_task(void *pvParameters){
     esp_log_level_set(TAG_TWAI_RX, MY_ESP_LOG_LEVEL);
-    //NMEA2000.SetN2kCANMsgBufSize(8);
-    //NMEA2000.SetN2kCANReceiveFrameBufSize(250);
-    //NMEA2000.EnableForward(false);               
-//
-    //NMEA2000.SetMsgHandler(HandleNMEA2000Msg);
-    //NMEA2000.SetMode(tNMEA2000::N2km_ListenAndSend);
-//
-    //NMEA2000.Open()
-    //NMEA2000.ConfigureAlerts(alerts_to_enable);
+
     while(1)
     {
         NMEA2000.CAN_read_frame();
         NMEA2000.ParseMessages();
-        //GetStatus(TAG_TWAI_RX);
-        //vTaskGetRunTimeStats(runtime_stats_buf);
-        //vTaskDelay(100 / portTICK_PERIOD_MS); // 10 s delay
+        //vTaskDelay(100 / portTICK_PERIOD_MS); // 10 ms delay
     }
     vTaskDelete(NULL); // should never get here...
 }
 
 /**
  * @brief FreeRTOS task for processing and sending messages from CAN controller with NMEA2000 library
+ * 
+ * Initializes NMEA2000 Object, then sends messages in loop.
  * 
  * @todo frame buffer should be 32 - see if this works
  * @param pvParameters
@@ -506,9 +491,7 @@ void N2K_send_task(void *pvParameters)
 
     NMEA2000.Open();
 
-
-    //NMEA2000.ConfigureAlerts(alerts_to_enable);
-
+    NMEA2000.ConfigureAlerts(alerts_to_enable);
 
     for (;;)
     {
@@ -517,10 +500,7 @@ void N2K_send_task(void *pvParameters)
         SendN2kMsg();
 
         NMEA2000.ParseMessages();   
-        vTaskDelay(100 / portTICK_PERIOD_MS); // 10 s delay
-        //GetStatus(TAG_TWAI_TX);
-
-
+        vTaskDelay(10 / portTICK_PERIOD_MS); // 10 ms delay
     }
     vTaskDelete(NULL); // should never get here...
 }
@@ -727,12 +707,7 @@ void * iwasm_main(void *arg)
         ESP_LOGD(TAG_WASM, "run main() of the application");
         ret = app_instance_main(wasm_module_inst);
         assert(!ret);
-        vTaskDelay(20 / portTICK_PERIOD_MS);
-        //if (wasm_app_delay){
-        //    vTaskDelay(100 / portTICK_PERIOD_MS);
-        //}       
-        //GetStatus(TAG_WASM);
-
+        vTaskDelay(10 / portTICK_PERIOD_MS);
     }
 
 
@@ -789,7 +764,7 @@ extern "C" int app_main(void)
         goto err_out;
     }
 
-    /* Create task */
+    /* Init and sending task */
     ESP_LOGV(TAG_WASM, "create task");
     xTaskCreate(
         &N2K_send_task,            // Pointer to the task entry function.
@@ -806,7 +781,7 @@ extern "C" int app_main(void)
         goto err_out;
     }
 
-    /* Create task */
+    /* Receiving task */
     ESP_LOGV(TAG_TWAI_RX, "create task");
     xTaskCreate(
         &N2K_receive_task,            // Pointer to the task entry function.
@@ -823,20 +798,20 @@ extern "C" int app_main(void)
         goto err_out;
     }
 
-    /* Create pthread */
-    //pthread_t t;
-    //int res;
-//
-    //pthread_attr_t tattr;
-    //pthread_attr_init(&tattr);
-    //pthread_attr_setdetachstate(&tattr, PTHREAD_CREATE_JOINABLE);
-    //pthread_attr_setstacksize(&tattr, PTHREAD_STACK_SIZE);
-//
-    //res = pthread_create(&t, &tattr, iwasm_main, (void *)NULL);
-    //assert(res == 0);
-//
-    //res = pthread_join(t, NULL);
-    //assert(res == 0);
+    /* Wasm pthread */
+    pthread_t t;
+    int res;
+
+    pthread_attr_t tattr;
+    pthread_attr_init(&tattr);
+    pthread_attr_setdetachstate(&tattr, PTHREAD_CREATE_JOINABLE);
+    pthread_attr_setstacksize(&tattr, PTHREAD_STACK_SIZE);
+
+    res = pthread_create(&t, &tattr, iwasm_main, (void *)NULL);
+    assert(res == 0);
+
+    res = pthread_join(t, NULL);
+    assert(res == 0);
 
 
 err_out:
