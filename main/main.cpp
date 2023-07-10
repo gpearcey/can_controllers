@@ -56,7 +56,9 @@
 #define MY_ESP_LOG_LEVEL                  ESP_LOG_INFO // the log level for this file
 //#define portCONFIGURE_TIMER_FOR_RUN_TIME_STATS()
 //#define portGET_RUN_TIME_COUNTER_VALUE()
-
+#define STATS_TASK_PRIO     tskIDLE_PRIORITY //3
+#define STATS_TICKS         pdMS_TO_TICKS(1000)
+#define ARRAY_SIZE_OFFSET   5   //Increase this if print_real_time_stats returns ESP_ERR_INVALID_SIZE
 // Tag for ESP logging
 static const char* TAG_TWAI_TX = "TWAI_SEND";
 static const char* TAG_TWAI_RX = "TWAI_RECEIVE";
@@ -71,8 +73,9 @@ static const char* TAG_STATUS = "STATUS";
 tNMEA2000_esp32c6 NMEA2000(GPIO_NUM_4, GPIO_NUM_5);
 
 // Task Handles
-static TaskHandle_t N2K_task_handle = NULL;
+static TaskHandle_t N2K_send_task_handle = NULL;
 static TaskHandle_t N2K_receive_task_handle = NULL;
+static TaskHandle_t N2K_stats_task_handle = NULL;
 
 static unsigned long N2kMsgSentCount=0;
 static unsigned long N2kMsgFailCount=0;
@@ -402,9 +405,9 @@ void GetStatus(const char* TAG){
     //} 
     twai_status_info_t status;
     NMEA2000.GetTwaiStatus(status);
-    //ESP_LOGI(TAG, "Msgs queued for transmission: %" PRIu32" Unread messages in rx queue: %" PRIu32, status.msgs_to_tx, status.msgs_to_rx);
-    //ESP_LOGI(TAG, "Msgs lost due to RX FIFO overrun: %" PRIu32, status.rx_overrun_count);
-    //ESP_LOGI(TAG, "Msgs lost due to full RX queue: %" PRIu32, status.rx_missed_count);
+    ESP_LOGI(TAG, "Msgs queued for transmission: %" PRIu32" Unread messages in rx queue: %" PRIu32, status.msgs_to_tx, status.msgs_to_rx);
+    ESP_LOGI(TAG, "Msgs lost due to RX FIFO overrun: %" PRIu32, status.rx_overrun_count);
+    ESP_LOGI(TAG, "Msgs lost due to full RX queue: %" PRIu32, status.rx_missed_count);
     ESP_LOGI(TAG, "Messages Read: %d, Messages Sent %d", read_msg_count, send_msg_count);
     ESP_LOGI(TAG, "Received Messages queue size: %d \n", received_msgs_q.size());
 
@@ -418,47 +421,40 @@ void GetStatus(const char* TAG){
  * @param pvParameters
  * 
 */
-//void status_task(void *pvParameters){
-//    esp_log_level_set(TAG_STATUS, MY_ESP_LOG_LEVEL);
-//    for (;;)
-//    {
-//        //GetStatus(TAG_STATUS);
-//        printf("\n\nGetting real time stats over %"PRIu32" ticks\n", STATS_TICKS);
-//        esp_err_t result = print_real_time_stats(STATS_TICKS);
-//        if (result == ESP_OK) {
-//            printf("Real time stats obtained\n");
-//        } else if (result == ESP_ERR_INVALID_SIZE){
-//            printf("error invalid size");
-//        } else if (result == ESP_ERR_INVALID_STATE) {
-//            printf("Error invalid state\n");
-//        }else{
-//            printf("Error getting stats\n");
-//        }
-//        vTaskDelay(pdMS_TO_TICKS(1000));
-//        //vTaskDelay(3000 / portTICK_PERIOD_MS); // 10 s delay
-//    }
-//    vTaskDelete(NULL); // should never get here...
-//}
-static void status_task(void *arg)
+static void stats_task(void *arg)
 {
-    //xSemaphoreTake(sync_stats_task, portMAX_DELAY);
-
-    //Start all the spin tasks
-    //for (int i = 0; i < NUM_OF_SPIN_TASKS; i++) {
-    //    xSemaphoreGive(sync_spin_task);
-    //}
-
     //Print real time stats periodically
     while (1) {
         printf("\n\nGetting real time stats over %"PRIu32" ticks\n", STATS_TICKS);
-        //if (print_real_time_stats(STATS_TICKS) == ESP_OK) {
-        //    printf("Real time stats obtained\n");
-        //} else {
-        //    printf("Error getting real time stats\n");
-        //}
+        if (print_real_time_stats(STATS_TICKS) == ESP_OK) {
+            printf("Real time stats obtained\n");
+        } else {
+            printf("Error getting real time stats\n");
+        }
+        GetStatus(TAG_STATUS);
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }
+//static void status_task(void *arg)
+//{
+//    //xSemaphoreTake(sync_stats_task, portMAX_DELAY);
+//
+//    //Start all the spin tasks
+//    //for (int i = 0; i < NUM_OF_SPIN_TASKS; i++) {
+//    //    xSemaphoreGive(sync_spin_task);
+//    //}
+//
+//    //Print real time stats periodically
+//    while (1) {
+//        printf("\n\nGetting real time stats over %"PRIu32" ticks\n", STATS_TICKS);
+//        //if (print_real_time_stats(STATS_TICKS) == ESP_OK) {
+//        //    printf("Real time stats obtained\n");
+//        //} else {
+//        //    printf("Error getting real time stats\n");
+//        //}
+//        vTaskDelay(pdMS_TO_TICKS(1000));
+//    }
+//}
 /**
  * @brief FreeRTOS task for receiving messages from CAN controller
  * 
@@ -470,7 +466,7 @@ static void status_task(void *arg)
  * I was unable to trigger recieving a CAN frame from the twai rx interrupt, so CAN_read_frame() must be called explicitly here. 
 */
 void N2K_receive_task(void *pvParameters){
-    //esp_log_level_set(TAG_TWAI_RX, MY_ESP_LOG_LEVEL);
+    esp_log_level_set(TAG_TWAI_RX, MY_ESP_LOG_LEVEL);
     //NMEA2000.SetN2kCANMsgBufSize(8);
     //NMEA2000.SetN2kCANReceiveFrameBufSize(250);
     //NMEA2000.EnableForward(false);               
@@ -478,21 +474,17 @@ void N2K_receive_task(void *pvParameters){
     //NMEA2000.SetMsgHandler(HandleNMEA2000Msg);
     //NMEA2000.SetMode(tNMEA2000::N2km_ListenAndSend);
 //
-    //NMEA2000.Open();
-
+    //NMEA2000.Open()
     //NMEA2000.ConfigureAlerts(alerts_to_enable);
     while(1)
     {
-        //NMEA2000.CAN_read_frame();
-        //NMEA2000.ParseMessages();
+        NMEA2000.CAN_read_frame();
+        NMEA2000.ParseMessages();
         //GetStatus(TAG_TWAI_RX);
         //vTaskGetRunTimeStats(runtime_stats_buf);
-        for (int i = 0; i < 500000; i++) {
-            __asm__ __volatile__("NOP");
-        }
-        vTaskDelay(pdMS_TO_TICKS(100));
+        //vTaskDelay(100 / portTICK_PERIOD_MS); // 10 s delay
     }
-    //vTaskDelete(NULL); // should never get here...
+    vTaskDelete(NULL); // should never get here...
 }
 
 /**
@@ -501,7 +493,7 @@ void N2K_receive_task(void *pvParameters){
  * @todo frame buffer should be 32 - see if this works
  * @param pvParameters
 */
-void N2K_task(void *pvParameters)
+void N2K_send_task(void *pvParameters)
 {   
     esp_log_level_set(TAG_TWAI_TX, MY_ESP_LOG_LEVEL);
     ESP_LOGI(TAG_TWAI_TX, "Starting N2k_task");
@@ -515,16 +507,17 @@ void N2K_task(void *pvParameters)
     NMEA2000.Open();
 
 
-    NMEA2000.ConfigureAlerts(alerts_to_enable);
+    //NMEA2000.ConfigureAlerts(alerts_to_enable);
 
 
     for (;;)
     {
         // this runs everytime the task runs:
-        //SendN2kMsg();
+        ESP_LOGD(TAG_TWAI_TX, "Send task called");
+        SendN2kMsg();
 
-        //NMEA2000.ParseMessages();   
-        vTaskDelay(10000 / portTICK_PERIOD_MS); // 10 s delay
+        NMEA2000.ParseMessages();   
+        vTaskDelay(100 / portTICK_PERIOD_MS); // 10 s delay
         //GetStatus(TAG_TWAI_TX);
 
 
@@ -560,7 +553,7 @@ void HandleNMEA2000Msg(const tN2kMsg &N2kMsg) {
   }
 
   received_msgs_q.push(msg);
-  ESP_LOGD(TAG_TWAI_TX, "Received messages queue size %d", received_msgs_q.size());
+  ESP_LOGV(TAG_TWAI_TX, "Received messages queue size %d", received_msgs_q.size());
   read_msg_count++;
   ESP_LOGD("Message Handle", "added msg to received queue\n");
 }
@@ -780,16 +773,33 @@ extern "C" int app_main(void)
 {
     /* Status Task*/
     esp_err_t result = ESP_OK;
-    ESP_LOGV(TAG_WASM, "create task");
+    printf( "create task");
     xTaskCreate(
-        &status_task,            // Pointer to the task entry function.
-        "status_task",           // A descriptive name for the task for debugging.
+        &stats_task,            // Pointer to the task entry function.
+        "stats_task",           // A descriptive name for the task for debugging.
         4096,                 // size of the task stack in bytes.
         NULL,                 // Optional pointer to pvParameters
-        tskIDLE_PRIORITY, // priority at which the task should run
-        &N2K_task_handle      // Optional pass back task handle
+        STATS_TASK_PRIO, // priority at which the task should run
+        &N2K_stats_task_handle      // Optional pass back task handle
     );
-    if (N2K_task_handle == NULL)
+    if (N2K_stats_task_handle == NULL)
+    {
+        printf("Unable to create task.");
+        result = ESP_ERR_NO_MEM;
+        goto err_out;
+    }
+
+    /* Create task */
+    ESP_LOGV(TAG_WASM, "create task");
+    xTaskCreate(
+        &N2K_send_task,            // Pointer to the task entry function.
+        "Send_task",           // A descriptive name for the task for debugging.
+        3072,                 // size of the task stack in bytes.
+        NULL,                 // Optional pointer to pvParameters
+        tskIDLE_PRIORITY+1, // priority at which the task should run
+        &N2K_send_task_handle      // Optional pass back task handle
+    );
+    if (N2K_send_task_handle == NULL)
     {
         ESP_LOGE(TAG_TWAI_TX, "Unable to create task.");
         result = ESP_ERR_NO_MEM;
@@ -797,30 +807,13 @@ extern "C" int app_main(void)
     }
 
     /* Create task */
-    //ESP_LOGV(TAG_WASM, "create task");
-    //xTaskCreate(
-    //    &N2K_task,            // Pointer to the task entry function.
-    //    "Sending_task",           // A descriptive name for the task for debugging.
-    //    3072,                 // size of the task stack in bytes.
-    //    NULL,                 // Optional pointer to pvParameters
-    //    tskIDLE_PRIORITY, // priority at which the task should run
-    //    &N2K_task_handle      // Optional pass back task handle
-    //);
-    //if (N2K_task_handle == NULL)
-    //{
-    //    ESP_LOGE(TAG_TWAI_TX, "Unable to create task.");
-    //    result = ESP_ERR_NO_MEM;
-    //    goto err_out;
-    //}
-
-    /* Create task */
     ESP_LOGV(TAG_TWAI_RX, "create task");
     xTaskCreate(
         &N2K_receive_task,            // Pointer to the task entry function.
-        "Reading_task",           // A descriptive name for the task for debugging.
+        "Receive_task",           // A descriptive name for the task for debugging.
         3072,                 // size of the task stack in bytes.
         NULL,                 // Optional pointer to pvParameters
-        tskIDLE_PRIORITY, // priority at which the task should run
+        tskIDLE_PRIORITY+1, // priority at which the task should run
         &N2K_receive_task_handle      // Optional pass back task handle
     );
     if (N2K_receive_task_handle == NULL)
@@ -849,10 +842,14 @@ extern "C" int app_main(void)
 err_out:
     if (result != ESP_OK)
     {
-        if (N2K_task_handle != NULL)
+        if (N2K_send_task_handle != NULL || N2K_receive_task_handle != NULL || N2K_stats_task_handle != NULL)
         {
-            vTaskDelete(N2K_task_handle);
-            N2K_task_handle = NULL;
+            vTaskDelete(N2K_send_task_handle);
+            vTaskDelete(N2K_receive_task_handle);
+            vTaskDelete(N2K_stats_task_handle);
+            N2K_send_task_handle = NULL;
+            N2K_receive_task_handle = NULL;
+            N2K_stats_task_handle = NULL;
         }
     }
 
