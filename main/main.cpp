@@ -44,6 +44,7 @@
 #include <queue>
 #include <string>
 #include <iomanip>
+#include <chrono>
 
 //WebAssembley App
 #include "nmea_attack.h" 
@@ -97,6 +98,12 @@ int read_msg_count = 0; //!< Used to track messages read
 int send_msg_count = 0; //!< Used to track messages sent
 uint32_t alerts_to_enable = TWAI_ALERT_RX_DATA | TWAI_ALERT_TX_FAILED | TWAI_ALERT_RX_QUEUE_FULL; //!< Sets which alerts to enable for TWAI controller
 
+// Task Counters - temporary, for debugging
+int rx_task_count = 0;
+int tx_task_count = 0;
+int wasm_pthread_count = 0;
+int stats_task_count = 0;
+double wasm_main_duration;
 //-------------------------------------------------------------------------------------------------------------------------------
 // Native Functions to Export to WASM App
 //-----------------------------------------------------------------------------------------------------------------------------
@@ -426,6 +433,15 @@ void GetStatus(const char* TAG){
     ESP_LOGI(TAG, "Messages Read: %d, Messages Sent %d", read_msg_count, send_msg_count);
     ESP_LOGI(TAG, "Received Messages queue size: %d \n", received_msgs_q.size());
     ESP_LOGI(TAG, "Controller 0 send queue size: %d \n", ctrl0_q.size());
+
+    // Task Counters
+    ESP_LOGI(TAG, "RX task count: %d", rx_task_count);
+    ESP_LOGI(TAG, "TX task count: %d", tx_task_count);
+    ESP_LOGI(TAG, "Wasm pthread count: %d", wasm_pthread_count);
+    ESP_LOGI(TAG, "Stats task count: %d", stats_task_count);
+
+    //Duration of the app_instance_main for the wasm pthread
+    ESP_LOGI(TAG, "Duration of wasm task (ms): %f",wasm_main_duration/1000000);
 }
 /**
  * @brief Optional FreeRTOS task for printing status messages for debugging 
@@ -444,6 +460,7 @@ static void stats_task(void *arg)
             printf("Error getting real time stats\n");
         }
         GetStatus(TAG_STATUS);
+        stats_task_count++;
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }
@@ -465,6 +482,7 @@ void N2K_receive_task(void *pvParameters){
     {
         NMEA2000.CAN_read_frame();
         NMEA2000.ParseMessages();
+        rx_task_count++;
         //vTaskDelay(100 / portTICK_PERIOD_MS); // 10 ms delay
     }
     vTaskDelete(NULL); // should never get here...
@@ -500,6 +518,7 @@ void N2K_send_task(void *pvParameters)
         SendN2kMsg();
 
         NMEA2000.ParseMessages();   
+        tx_task_count++;
         vTaskDelay(10 / portTICK_PERIOD_MS); // 10 ms delay
     }
     vTaskDelete(NULL); // should never get here...
@@ -705,8 +724,13 @@ void * iwasm_main(void *arg)
 
     while (true){
         ESP_LOGD(TAG_WASM, "run main() of the application");
+        auto start = std::chrono::high_resolution_clock::now(); 
         ret = app_instance_main(wasm_module_inst);
+        auto end = std::chrono::high_resolution_clock::now();
+        auto ns_duration = duration_cast<std::chrono::nanoseconds>(end-start);
+        wasm_main_duration = static_cast<double>(ns_duration.count());
         assert(!ret);
+        wasm_pthread_count++;
         vTaskDelay(10 / portTICK_PERIOD_MS);
     }
 
