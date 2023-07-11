@@ -50,6 +50,7 @@
 #include "wasm_c_api.h"
 //WebAssembley App
 #include "nmea_attack.h" 
+#include "nmea_attack_aot.h"
 
 #define NATIVE_STACK_SIZE               (32*1024)
 #define NATIVE_HEAP_SIZE                (32*1024)
@@ -668,71 +669,12 @@ void * iwasm_main(void *arg)
     ESP_LOGI(TAG_WASM, "Run wamr with interpreter");
 
 //#if INTERPRETED MODE
-    wasm_file_buf = (uint8_t *)nmea_attack_wasm;
-    wasm_file_buf_size = sizeof(nmea_attack_wasm);
+    //wasm_file_buf = (uint8_t *)nmea_attack_wasm;
+    //wasm_file_buf_size = sizeof(nmea_attack_wasm);
 //else
-    /* read WASM file into a memory buffer */
-    //std::ifstream file = fopen("main/nmea_attack.aot", "rb");
-    ////std::ifstream file("main/nmea_attack.aot", std::ios::binary);
-    //if (!file.is_open()) {
-    //    ESP_LOGE(TAG_WASM, "Failed to open the aot file");
-    //    return nullptr; // Return an error code or handle the failure appropriately.
-    //}
-    //file.seekg(0, std::ios::end); // Move the file pointer to the end.
-    //std::streampos fileSize = file.tellg(); // Get the file size.
-    //file.seekg(0, std::ios::beg); // Reset the file pointer to the beginning.
-    //
-    //uint8_t* wasm_file_buf = new uint8_t[fileSize];
-    //
-    //file.read(reinterpret_cast<char*>(wasm_file_buf), fileSize);
-    //    if (!file) {
-    //    std::cerr << "Failed to read the file." << std::endl;
-    //    delete[] wasm_file_buf;
-    //    return nullptr;
-    //}
-    //file.close();
-  FILE* file = fopen("nmea_attack.aot", "rb");
-
-  if (!file) {
-    printf("> Error accessing file\n");
-    return nullptr;
-  }
-
-  int retu = fseek(file, 0L, SEEK_END);
-  if (retu == -1) {
-    printf("> Error loading module!\n");
-    fclose(file);
-    return nullptr;
-  }
-
-  long file_size = ftell(file);
-  if (file_size == -1) {
-    printf("> Error loading module!\n");
-    fclose(file);
-    return nullptr;
-  }
-
-  retu = fseek(file, 0L, SEEK_SET);
-  if (retu == -1) {
-    printf("> Error loading module!\n");
-    fclose(file);
-    return nullptr;
-  }
-
-  //wasm_byte_vec_t binary;
-  //wasm_byte_vec_new_uninitialized(&binary, file_size);
-  if (fread(wasm_file_buf, file_size, 1, file) != 1) {
-    printf("> Error loading module!\n");
-    fclose(file);
-    return nullptr;
-  }
-  fclose(file);
-
-  //wasm_file_buf = binary.data.data();
-  //wasm_file_buf_size = file_size
-
+    wasm_file_buf = (uint8_t *)nmea_attack_aot;
+    wasm_file_buf_size = sizeof(nmea_attack_aot);
 //end if
-    
 
     /* load WASM module */
     if (!(wasm_module = wasm_runtime_load(wasm_file_buf, wasm_file_buf_size,
@@ -756,7 +698,7 @@ void * iwasm_main(void *arg)
         ESP_LOGW(TAG_WASM,"Create wasm execution environment failed.\n");
         goto fail;
     }
-
+//
     ESP_LOGI(TAG_WASM, "Malloc buffer in wasm function");
     buffer_for_wasm = wasm_runtime_module_malloc(wasm_module_inst, 100, (void **)&wasm_buffer);
     if (buffer_for_wasm == 0) {
@@ -776,7 +718,7 @@ void * iwasm_main(void *arg)
             "The wasm function link_msg_buffer wasm function is not found.\n");
         goto fail;
     }
-
+//
     if (wasm_runtime_call_wasm(exec_env, func, 2, argv)) {
         ESP_LOGI(TAG_WASM,"Native finished calling wasm function: link_msg_buffer, "
                "returned a formatted string: %s\n",
@@ -799,7 +741,7 @@ void * iwasm_main(void *arg)
         wasm_pthread_count++;
         vTaskDelay(10 / portTICK_PERIOD_MS);
     }
-
+//
 
     wasm_runtime_module_free(wasm_module_inst, buffer_for_wasm);
     
