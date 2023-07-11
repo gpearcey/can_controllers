@@ -221,7 +221,7 @@ int32_t SendMsg(wasm_exec_env_t exec_env, int32_t controller_number, int32_t pri
 
     if (controller_number == 0){
         ESP_LOGD(TAG_WASM,"Added a msg to ctrl0_q with PGN %u \n", msg.PGN);
-        xQueueSendToBack(q_buf, &msg, pdMS_TO_TICKS(100));
+        xQueueSendToBack(q_buf, &msg, pdMS_TO_TICKS(10));
         return 1;
     }
 
@@ -513,7 +513,7 @@ void N2K_send_task(void *pvParameters)
 
     NMEA2000.SetMsgHandler(HandleNMEA2000Msg);
     NMEA2000.SetMode(tNMEA2000::N2km_ListenAndSend);
-
+    
     NMEA2000.Open();
 
     NMEA2000.ConfigureAlerts(alerts_to_enable);
@@ -521,8 +521,8 @@ void N2K_send_task(void *pvParameters)
     NMEA_msg msg;
     BaseType_t xStatus; 
     for (;;)
-    {   
-        if( xQueueReceive( q_buf, &msg, (100 / portTICK_PERIOD_MS) ))
+    {
+        if( xQueueReceive( q_buf, &msg, (10 / portTICK_PERIOD_MS) ))
         {
             SendN2kMsg(msg);
         }
@@ -795,7 +795,7 @@ fail:
 */
 extern "C" int app_main(void)
 {
-    q_buf = xQueueCreate(500, sizeof(NMEA_msg));
+    q_buf = xQueueCreate(10, sizeof(NMEA_msg));
 
     /* Status Task*/
     esp_err_t result = ESP_OK;
@@ -807,7 +807,7 @@ extern "C" int app_main(void)
         NULL,                 // Optional pointer to pvParameters
         STATS_TASK_PRIO, // priority at which the task should run
         &N2K_stats_task_handle,      // Optional pass back task handle
-        0
+        1
     );
     if (N2K_stats_task_handle == NULL)
     {
@@ -825,7 +825,7 @@ extern "C" int app_main(void)
         NULL,                 // Optional pointer to pvParameters
         tskIDLE_PRIORITY+6, // priority at which the task should run
         &N2K_send_task_handle,      // Optional pass back task handle
-        0
+        1
     );
     if (N2K_send_task_handle == NULL)
     {
