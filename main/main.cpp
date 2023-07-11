@@ -798,7 +798,7 @@ extern "C" int app_main(void)
         "Send_task",           // A descriptive name for the task for debugging.
         3072,                 // size of the task stack in bytes.
         NULL,                 // Optional pointer to pvParameters
-        tskIDLE_PRIORITY+1, // priority at which the task should run
+        tskIDLE_PRIORITY+6, // priority at which the task should run
         &N2K_send_task_handle      // Optional pass back task handle
     );
     if (N2K_send_task_handle == NULL)
@@ -815,7 +815,7 @@ extern "C" int app_main(void)
         "Receive_task",           // A descriptive name for the task for debugging.
         3072,                 // size of the task stack in bytes.
         NULL,                 // Optional pointer to pvParameters
-        tskIDLE_PRIORITY+1, // priority at which the task should run
+        tskIDLE_PRIORITY+6, // priority at which the task should run
         &N2K_receive_task_handle      // Optional pass back task handleSendMsg
     );
     if (N2K_receive_task_handle == NULL)
