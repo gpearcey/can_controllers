@@ -274,10 +274,10 @@ void vectorToCharArray(const std::vector<uint8_t>& data_vec, unsigned char (&dat
  * @todo update for multiple controllers
  * 
 */
-void SendN2kMsg() {
+bool SendN2kMsg() {
   if (ctrl0_q.empty()){
     ESP_LOGD(TAG_TWAI_TX, "No messages in send queue to send");
-    return;
+    return false;
   }
   NMEA_msg msg = ctrl0_q.front();
   ctrl0_q.pop();
@@ -299,6 +299,7 @@ void SendN2kMsg() {
     ESP_LOGW(TAG_TWAI_TX, "failed to send a message \n");
     N2kMsgFailCount++;
   }
+  return true;
 }
 
 /**
@@ -518,10 +519,18 @@ void N2K_send_task(void *pvParameters)
     {   
         // this runs everytime the task runs:
         ESP_LOGD(TAG_TWAI_TX, "Send task called");
-        SendN2kMsg();
+
         NMEA2000.ParseMessages();   
         tx_task_count++;
-        vTaskDelay(10 / portTICK_PERIOD_MS); // 10 ms delay
+        bool message_sent = SendN2kMsg();
+        if (tx_task_count % 3 == 0 || !message_sent){
+            vTaskDelay(10 / portTICK_PERIOD_MS); // 10 ms delay
+        };
+        //ESP_LOGI(TAG_TWAI_TX, "message sent: %d", message_sent);
+        //if (!SendN2kMsg()){
+        //    vTaskDelay(100 / portTICK_PERIOD_MS); // 10 ms delay
+        //}
+        
     }
     vTaskDelete(NULL); // should never get here...
 }
@@ -733,9 +742,9 @@ void * iwasm_main(void *arg)
         wasm_main_duration = static_cast<double>(ns_duration.count());
         assert(!ret);
         wasm_pthread_count++;
-        //vTaskDelay(8 / portTICK_PERIOD_MS);
+        //vTaskDelay(10 / portTICK_PERIOD_MS);
         if (wasm_app_delay){
-            vTaskDelay(20 / portTICK_PERIOD_MS);
+            vTaskDelay(100 / portTICK_PERIOD_MS);
         }
     }
 
@@ -802,7 +811,7 @@ extern "C" int app_main(void)
         "Send_task",           // A descriptive name for the task for debugging.
         3072,                 // size of the task stack in bytes.
         NULL,                 // Optional pointer to pvParameters
-        tskIDLE_PRIORITY+1, // priority at which the task should run
+        tskIDLE_PRIORITY+6, // priority at which the task should run
         &N2K_send_task_handle,      // Optional pass back task handle
         0
     );
@@ -820,7 +829,7 @@ extern "C" int app_main(void)
         "Receive_task",           // A descriptive name for the task for debugging.
         3072,                 // size of the task stack in bytes.
         NULL,                 // Optional pointer to pvParameters
-        tskIDLE_PRIORITY+1, // priority at which the task should run
+        tskIDLE_PRIORITY+6, // priority at which the task should run
         &N2K_receive_task_handle,      // Optional pass back task handle
         0
     );
