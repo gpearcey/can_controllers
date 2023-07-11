@@ -32,6 +32,7 @@
 #include <NMEA2000.h>
 #include <N2kMessages.h>
 #include "esp_err.h"
+#include "esp_pthread.h"
 
 #include "driver/gpio.h"
 #include "bi-inc/attr_container.h"
@@ -483,7 +484,7 @@ void N2K_receive_task(void *pvParameters){
         NMEA2000.CAN_read_frame();
         NMEA2000.ParseMessages();
         rx_task_count++;
-        //vTaskDelay(100 / portTICK_PERIOD_MS); // 10 ms delay
+        //vTaskDelay(10 / portTICK_PERIOD_MS); // 10 ms delay
     }
     vTaskDelete(NULL); // should never get here...
 }
@@ -516,7 +517,6 @@ void N2K_send_task(void *pvParameters)
         // this runs everytime the task runs:
         ESP_LOGD(TAG_TWAI_TX, "Send task called");
         SendN2kMsg();
-
         NMEA2000.ParseMessages();   
         tx_task_count++;
         vTaskDelay(10 / portTICK_PERIOD_MS); // 10 ms delay
@@ -732,6 +732,9 @@ void * iwasm_main(void *arg)
         assert(!ret);
         wasm_pthread_count++;
         vTaskDelay(10 / portTICK_PERIOD_MS);
+        //if (wasm_app_delay){
+        //    vTaskDelay(10 / portTICK_PERIOD_MS);
+        //}
     }
 
 
@@ -813,29 +816,42 @@ extern "C" int app_main(void)
         3072,                 // size of the task stack in bytes.
         NULL,                 // Optional pointer to pvParameters
         tskIDLE_PRIORITY+1, // priority at which the task should run
-        &N2K_receive_task_handle      // Optional pass back task handle
+        &N2K_receive_task_handle      // Optional pass back task handleSendMsg
     );
     if (N2K_receive_task_handle == NULL)
     {
         ESP_LOGE(TAG_TWAI_RX, "Unable to create task.");
         result = ESP_ERR_NO_MEM;
         goto err_out;
+
     }
 
     /* Wasm pthread */
     pthread_t t;
     int res;
+    esp_pthread_cfg_t esp_pthread_cfg;
+
+
 
     pthread_attr_t tattr;
     pthread_attr_init(&tattr);
     pthread_attr_setdetachstate(&tattr, PTHREAD_CREATE_JOINABLE);
     pthread_attr_setstacksize(&tattr, PTHREAD_STACK_SIZE);
 
+    // Use the ESP-IDF API to change the default thread attributes
+    esp_pthread_cfg = esp_pthread_get_default_config();
+    ESP_LOGI(TAG_WASM, "Pthread priority: %d", esp_pthread_cfg.prio);
+    esp_pthread_cfg.prio = tskIDLE_PRIORITY+5; //change priority 
+    ESP_ERROR_CHECK( esp_pthread_set_cfg(&esp_pthread_cfg) );
+
     res = pthread_create(&t, &tattr, iwasm_main, (void *)NULL);
     assert(res == 0);
 
+    esp_pthread_get_cfg(&esp_pthread_cfg);
+    ESP_LOGI(TAG_WASM, "Pthread priority: %d", esp_pthread_cfg.prio);
     res = pthread_join(t, NULL);
     assert(res == 0);
+
 
 
 err_out:
