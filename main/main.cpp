@@ -81,6 +81,7 @@ static TaskHandle_t N2K_stats_task_handle = NULL;
 static unsigned long N2kMsgSentCount=0;
 static unsigned long N2kMsgFailCount=0;
 
+
 //----------------------------------------------------------------------------------------------------------------------------
 // Forward Declarations
 //----------------------------------------------------------------------------------------------------------------------------
@@ -485,6 +486,7 @@ void N2K_receive_task(void *pvParameters){
         NMEA2000.ParseMessages();
         rx_task_count++;
         //vTaskDelay(10 / portTICK_PERIOD_MS); // 10 ms delay
+
     }
     vTaskDelete(NULL); // should never get here...
 }
@@ -513,7 +515,7 @@ void N2K_send_task(void *pvParameters)
     NMEA2000.ConfigureAlerts(alerts_to_enable);
 
     for (;;)
-    {
+    {   
         // this runs everytime the task runs:
         ESP_LOGD(TAG_TWAI_TX, "Send task called");
         SendN2kMsg();
@@ -731,10 +733,10 @@ void * iwasm_main(void *arg)
         wasm_main_duration = static_cast<double>(ns_duration.count());
         assert(!ret);
         wasm_pthread_count++;
-        vTaskDelay(10 / portTICK_PERIOD_MS);
-        //if (wasm_app_delay){
-        //    vTaskDelay(10 / portTICK_PERIOD_MS);
-        //}
+        //vTaskDelay(8 / portTICK_PERIOD_MS);
+        if (wasm_app_delay){
+            vTaskDelay(20 / portTICK_PERIOD_MS);
+        }
     }
 
 
@@ -773,16 +775,18 @@ fail:
 */
 extern "C" int app_main(void)
 {
+
     /* Status Task*/
     esp_err_t result = ESP_OK;
     printf( "create task");
-    xTaskCreate(
+    xTaskCreatePinnedToCore(
         &stats_task,            // Pointer to the task entry function.
         "stats_task",           // A descriptive name for the task for debugging.
         4096,                 // size of the task stack in bytes.
         NULL,                 // Optional pointer to pvParameters
         STATS_TASK_PRIO, // priority at which the task should run
-        &N2K_stats_task_handle      // Optional pass back task handle
+        &N2K_stats_task_handle,      // Optional pass back task handle
+        0
     );
     if (N2K_stats_task_handle == NULL)
     {
@@ -793,13 +797,14 @@ extern "C" int app_main(void)
 
     /* Init and sending task */
     ESP_LOGV(TAG_WASM, "create task");
-    xTaskCreate(
+    xTaskCreatePinnedToCore(
         &N2K_send_task,            // Pointer to the task entry function.
         "Send_task",           // A descriptive name for the task for debugging.
         3072,                 // size of the task stack in bytes.
         NULL,                 // Optional pointer to pvParameters
         tskIDLE_PRIORITY+1, // priority at which the task should run
-        &N2K_send_task_handle      // Optional pass back task handle
+        &N2K_send_task_handle,      // Optional pass back task handle
+        0
     );
     if (N2K_send_task_handle == NULL)
     {
@@ -810,13 +815,14 @@ extern "C" int app_main(void)
 
     /* Receiving task */
     ESP_LOGV(TAG_TWAI_RX, "create task");
-    xTaskCreate(
+    xTaskCreatePinnedToCore(
         &N2K_receive_task,            // Pointer to the task entry function.
         "Receive_task",           // A descriptive name for the task for debugging.
         3072,                 // size of the task stack in bytes.
         NULL,                 // Optional pointer to pvParameters
         tskIDLE_PRIORITY+1, // priority at which the task should run
-        &N2K_receive_task_handle      // Optional pass back task handleSendMsg
+        &N2K_receive_task_handle,      // Optional pass back task handle
+        0
     );
     if (N2K_receive_task_handle == NULL)
     {
@@ -841,7 +847,9 @@ extern "C" int app_main(void)
     // Use the ESP-IDF API to change the default thread attributes
     esp_pthread_cfg = esp_pthread_get_default_config();
     ESP_LOGI(TAG_WASM, "Pthread priority: %d", esp_pthread_cfg.prio);
+    ESP_LOGI(TAG_WASM, "Pthread core: %d", esp_pthread_cfg.pin_to_core);
     esp_pthread_cfg.prio = tskIDLE_PRIORITY+5; //change priority 
+    esp_pthread_cfg.pin_to_core = 1;
     ESP_ERROR_CHECK( esp_pthread_set_cfg(&esp_pthread_cfg) );
 
     res = pthread_create(&t, &tattr, iwasm_main, (void *)NULL);
@@ -851,8 +859,6 @@ extern "C" int app_main(void)
     ESP_LOGI(TAG_WASM, "Pthread priority: %d", esp_pthread_cfg.prio);
     res = pthread_join(t, NULL);
     assert(res == 0);
-
-
 
 err_out:
     if (result != ESP_OK)
