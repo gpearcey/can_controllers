@@ -78,6 +78,8 @@ static TaskHandle_t N2K_send_task_handle = NULL;
 static TaskHandle_t N2K_receive_task_handle = NULL;
 static TaskHandle_t N2K_stats_task_handle = NULL;
 
+QueueHandle_t q_buf;
+
 static unsigned long N2kMsgSentCount=0;
 static unsigned long N2kMsgFailCount=0;
 
@@ -94,7 +96,7 @@ void vectorToCharArray(const std::vector<uint8_t>& data_vec, unsigned char (&dat
 //-----------------------------------------------------------------------------------------------------------------------------
 char * wasm_buffer = NULL;  //!< buffer allocated for wasm app, used to hold received messages so app can access them
 std::queue<NMEA_msg> received_msgs_q; //!< Queue that stores all messages received on all controllers
-std::queue<NMEA_msg> ctrl0_q; //!< Queue that stores messages to be sent out on controller 0
+//std::queue<NMEA_msg> ctrl0_q; //!< Queue that stores messages to be sent out on controller 0
 bool wasm_app_delay = true; //!< Used to add a conditional task delay to the pthread for the wasm app
 int read_msg_count = 0; //!< Used to track messages read
 int send_msg_count = 0; //!< Used to track messages sent
@@ -219,7 +221,7 @@ int32_t SendMsg(wasm_exec_env_t exec_env, int32_t controller_number, int32_t pri
 
     if (controller_number == 0){
         ESP_LOGD(TAG_WASM,"Added a msg to ctrl0_q with PGN %u \n", msg.PGN);
-        ctrl0_q.push(msg);
+        xQueueSendToBack(q_buf, &msg, pdMS_TO_TICKS(100));
         return 1;
     }
 
@@ -274,13 +276,13 @@ void vectorToCharArray(const std::vector<uint8_t>& data_vec, unsigned char (&dat
  * @todo update for multiple controllers
  * 
 */
-bool SendN2kMsg() {
-  if (ctrl0_q.empty()){
-    ESP_LOGD(TAG_TWAI_TX, "No messages in send queue to send");
-    return false;
-  }
-  NMEA_msg msg = ctrl0_q.front();
-  ctrl0_q.pop();
+bool SendN2kMsg(NMEA_msg msg) {
+  //if (ctrl0_q.empty()){
+  //  ESP_LOGD(TAG_TWAI_TX, "No messages in send queue to send");
+  //  return false;
+  //}
+  //NMEA_msg msg = ctrl0_q.front();
+  //ctrl0_q.pop();
   tN2kMsg N2kMsg;
   N2kMsg.Priority = msg.priority;
   N2kMsg.PGN = msg.PGN;
@@ -435,7 +437,8 @@ void GetStatus(const char* TAG){
     ESP_LOGI(TAG, "Msgs lost due to full RX queue: %" PRIu32, status.rx_missed_count);
     ESP_LOGI(TAG, "Messages Read: %d, Messages Sent %d", read_msg_count, send_msg_count);
     ESP_LOGI(TAG, "Received Messages queue size: %d \n", received_msgs_q.size());
-    ESP_LOGI(TAG, "Controller 0 send queue size: %d \n", ctrl0_q.size());
+    UBaseType_t msgs_in_q = uxQueueMessagesWaiting(q_buf);
+    ESP_LOGI(TAG, "Controller 0 send queue size: %d \n", msgs_in_q);
 
     // Task Counters
     ESP_LOGI(TAG, "RX task count: %d", rx_task_count);
@@ -515,17 +518,25 @@ void N2K_send_task(void *pvParameters)
 
     NMEA2000.ConfigureAlerts(alerts_to_enable);
 
+    NMEA_msg msg;
+    BaseType_t xStatus; 
     for (;;)
     {   
+        if( xQueueReceive( q_buf, &msg, (100 / portTICK_PERIOD_MS) ))
+        {
+            SendN2kMsg(msg);
+        }
+        //xStatus = xQueueReceive(q_buf, &msg, (100 / portTICK_PERIOD_MS));
         // this runs everytime the task runs:
         ESP_LOGD(TAG_TWAI_TX, "Send task called");
 
         NMEA2000.ParseMessages();   
         tx_task_count++;
-        bool message_sent = SendN2kMsg();
-        if (tx_task_count % 3 == 0 || !message_sent){
-            vTaskDelay(10 / portTICK_PERIOD_MS); // 10 ms delay
-        };
+        //bool message_sent = SendN2kMsg(msg);
+        vTaskDelay(10 / portTICK_PERIOD_MS); // 10 ms delay
+        //if (tx_task_count % 3 == 0 || !message_sent){
+        //    vTaskDelay(10 / portTICK_PERIOD_MS); // 10 ms delay
+        //};
         //ESP_LOGI(TAG_TWAI_TX, "message sent: %d", message_sent);
         //if (!SendN2kMsg()){
         //    vTaskDelay(100 / portTICK_PERIOD_MS); // 10 ms delay
@@ -784,6 +795,7 @@ fail:
 */
 extern "C" int app_main(void)
 {
+    q_buf = xQueueCreate(500, sizeof(NMEA_msg));
 
     /* Status Task*/
     esp_err_t result = ESP_OK;
