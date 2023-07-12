@@ -52,6 +52,11 @@
 #include "nmea_attack.h" 
 #include "nmea_attack_aot.h"
 
+#define WASM_ENABLE_INTERP  0
+#define WASM_ENABLE_AOT  1
+#define BUILD_TARGET_XTENSA 0
+#define BUILD_TARGET_RISCV32_ILP32 1
+
 #define NATIVE_STACK_SIZE               (32*1024)
 #define NATIVE_HEAP_SIZE                (32*1024)
 #define PTHREAD_STACK_SIZE              4096
