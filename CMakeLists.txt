@@ -19,9 +19,8 @@ endif()
 #
 #set(IDF_ISA "xtensa" CACHE STRING "Instruction Set Architecture (default: xtensa)")
 set(IDF_ISA "riscv32" CACHE STRING "Instruction Set Architecture (default: riscv32)")
-#set(IDF_TARGET "esp" CACHE STRING "Target (default: esp)")
 
-#
+#set(IDF_TARGET "esp" CACHE STRING "Target (default: esp)")
 # Find Espressif compiler path.
 #
 #set(ESP_COMPILER_NAME "${IDF_ISA}-${IDF_TARGET}-elf-gcc")

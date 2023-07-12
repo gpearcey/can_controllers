@@ -46,9 +46,17 @@
 #include <string>
 #include <iomanip>
 #include <chrono>
-
+#include <fstream>
+#include <iostream>
+#include "wasm_c_api.h"
 //WebAssembley App
 #include "nmea_attack.h" 
+#include "nmea_attack_aot.h"
+
+#define WASM_ENABLE_INTERP  0
+#define WASM_ENABLE_AOT  1
+#define BUILD_TARGET_XTENSA 0
+#define BUILD_TARGET_RISCV32_ILP32 1
 
 #define NATIVE_STACK_SIZE               (32*1024)
 #define NATIVE_HEAP_SIZE                (32*1024)
@@ -665,8 +673,13 @@ void * iwasm_main(void *arg)
     }
     ESP_LOGI(TAG_WASM, "Run wamr with interpreter");
 
-    wasm_file_buf = (uint8_t *)nmea_attack_wasm;
-    wasm_file_buf_size = sizeof(nmea_attack_wasm);
+//#if INTERPRETED MODE
+    //wasm_file_buf = (uint8_t *)nmea_attack_wasm;
+    //wasm_file_buf_size = sizeof(nmea_attack_wasm);
+//else
+    wasm_file_buf = (uint8_t *)nmea_attack_aot;
+    wasm_file_buf_size = sizeof(nmea_attack_aot);
+//end if
 
     /* load WASM module */
     if (!(wasm_module = wasm_runtime_load(wasm_file_buf, wasm_file_buf_size,
@@ -690,7 +703,7 @@ void * iwasm_main(void *arg)
         ESP_LOGW(TAG_WASM,"Create wasm execution environment failed.\n");
         goto fail;
     }
-
+//
     ESP_LOGI(TAG_WASM, "Malloc buffer in wasm function");
     buffer_for_wasm = wasm_runtime_module_malloc(wasm_module_inst, 100, (void **)&wasm_buffer);
     if (buffer_for_wasm == 0) {
@@ -710,7 +723,7 @@ void * iwasm_main(void *arg)
             "The wasm function link_msg_buffer wasm function is not found.\n");
         goto fail;
     }
-
+//
     if (wasm_runtime_call_wasm(exec_env, func, 2, argv)) {
         ESP_LOGI(TAG_WASM,"Native finished calling wasm function: link_msg_buffer, "
                "returned a formatted string: %s\n",
@@ -736,7 +749,7 @@ void * iwasm_main(void *arg)
         //    vTaskDelay(10 / portTICK_PERIOD_MS);
         //}
     }
-
+//
 
     wasm_runtime_module_free(wasm_module_inst, buffer_for_wasm);
     
