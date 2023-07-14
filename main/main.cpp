@@ -489,7 +489,7 @@ void N2K_receive_task(void *pvParameters){
         NMEA2000.CAN_read_frame();
         NMEA2000.ParseMessages();
         rx_task_count++;
-        //vTaskDelay(10 / portTICK_PERIOD_MS); // 10 ms delay
+        //vTaskDelay(100 / portTICK_PERIOD_MS); // 10 ms delay
 
     }
     vTaskDelete(NULL); // should never get here...
@@ -522,7 +522,7 @@ void N2K_send_task(void *pvParameters)
     BaseType_t xStatus; 
     for (;;)
     {
-        if( xQueueReceive( q_buf, &msg, (10 / portTICK_PERIOD_MS) ))
+        if( xQueueReceive( q_buf, &msg, (100 / portTICK_PERIOD_MS) ))
         {
             SendN2kMsg(msg);
         }
@@ -530,10 +530,10 @@ void N2K_send_task(void *pvParameters)
         // this runs everytime the task runs:
         ESP_LOGD(TAG_TWAI_TX, "Send task called");
 
-        NMEA2000.ParseMessages();   
+        //NMEA2000.ParseMessages();   
         tx_task_count++;
         //bool message_sent = SendN2kMsg(msg);
-        vTaskDelay(10 / portTICK_PERIOD_MS); // 10 ms delay
+        //vTaskDelay(10 / portTICK_PERIOD_MS); // 10 ms delay
         //if (tx_task_count % 3 == 0 || !message_sent){
         //    vTaskDelay(10 / portTICK_PERIOD_MS); // 10 ms delay
         //};
@@ -824,7 +824,8 @@ extern "C" int app_main(void)
         3072,                 // size of the task stack in bytes.
         NULL,                 // Optional pointer to pvParameters
         tskIDLE_PRIORITY+6, // priority at which the task should run
-        &N2K_send_task_handle      // Optional pass back task handle
+        &N2K_send_task_handle,      // Optional pass back task handle
+        1
     );
     if (N2K_send_task_handle == NULL)
     {
