@@ -824,8 +824,7 @@ extern "C" int app_main(void)
         3072,                 // size of the task stack in bytes.
         NULL,                 // Optional pointer to pvParameters
         tskIDLE_PRIORITY+6, // priority at which the task should run
-        &N2K_send_task_handle,      // Optional pass back task handle
-        1
+        &N2K_send_task_handle      // Optional pass back task handle
     );
     if (N2K_send_task_handle == NULL)
     {
