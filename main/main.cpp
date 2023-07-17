@@ -55,13 +55,13 @@
 #define PTHREAD_STACK_SIZE              4096
 #define MAX_DATA_LENGTH_BTYES           223
 #define BUFFER_SIZE                     (10 + 223*2) //10 bytes for id, 223*2 bytes for data
-#define MY_ESP_LOG_LEVEL                  ESP_LOG_INFO // the log level for this file
+#define MY_ESP_LOG_LEVEL                ESP_LOG_INFO // the log level for this file
 
 #define STATS_TASK_PRIO     tskIDLE_PRIORITY //3
 #define STATS_TICKS         pdMS_TO_TICKS(1000)
 #define ARRAY_SIZE_OFFSET   5   //Increase this if print_real_time_stats returns ESP_ERR_INVALID_SIZE
-#define TX_QUEUE_SIZE       300
-#define RX_QUEUE_SIZE       300
+#define TX_QUEUE_SIZE       100
+#define RX_QUEUE_SIZE       100
 
 // Tag for ESP logging
 static const char* TAG_TWAI_TX = "TWAI_SEND";
@@ -81,8 +81,8 @@ static TaskHandle_t N2K_send_task_handle = NULL;
 static TaskHandle_t N2K_receive_task_handle = NULL;
 static TaskHandle_t N2K_stats_task_handle = NULL;
 
-QueueHandle_t controller0_tx_queue;
-QueueHandle_t rx_queue;
+QueueHandle_t controller0_tx_queue; //!< Queue that stores messages to be sent out on controller 0
+QueueHandle_t rx_queue; //!< Queue that stores all messages received on all controllers
 
 static unsigned long N2kMsgSentCount=0;
 static unsigned long N2kMsgFailCount=0;
@@ -99,9 +99,6 @@ void uintArrToCharrArray(uint8_t (&data_uint8_arr)[MAX_DATA_LENGTH_BTYES], unsig
 // Variables
 //-----------------------------------------------------------------------------------------------------------------------------
 char * wasm_buffer = NULL;  //!< buffer allocated for wasm app, used to hold received messages so app can access them
-std::queue<NMEA_msg> received_msgs_q; //!< Queue that stores all messages received on all controllers
-//std::queue<NMEA_msg> ctrl0_q; //!< Queue that stores messages to be sent out on controller 0
-bool wasm_app_delay = true; //!< Used to add a conditional task delay to the pthread for the wasm app
 int read_msg_count = 0; //!< Used to track messages read
 int send_msg_count = 0; //!< Used to track messages sent
 uint32_t alerts_to_enable = TWAI_ALERT_RX_DATA | TWAI_ALERT_TX_FAILED | TWAI_ALERT_RX_QUEUE_FULL; //!< Sets which alerts to enable for TWAI controller
@@ -151,16 +148,6 @@ void PrintInt32(wasm_exec_env_t exec_env,int32_t number,int32_t hex){
         printf("PrintInt32: %li \n", number);
     }    
     return;
-}
-
-void AddAppDelay(wasm_exec_env_t exec_env){
-    wasm_app_delay = true;
-    ESP_LOGD(TAG_WASM, "WASM Delay on");
-}
-
-void RemoveAppDelay(wasm_exec_env_t exec_env){
-    wasm_app_delay = false;
-    ESP_LOGD(TAG_WASM, "WASM Delay off");
 }
 
 /****************************************************************************
@@ -634,18 +621,6 @@ void * iwasm_main(void *arg)
             NULL      
         },
         {
-            "AddAppDelay",
-            reinterpret_cast<void*>(AddAppDelay), 
-            "()",
-            NULL
-        },
-        {
-            "RemoveAppDelay",
-            reinterpret_cast<void*>(RemoveAppDelay), 
-            "()",
-            NULL
-        },
-        {
             "SendMsg",
             reinterpret_cast<void*>(SendMsg),   
             "(iiii*~)i",
@@ -750,10 +725,6 @@ void * iwasm_main(void *arg)
         wasm_main_duration = static_cast<double>(ns_duration.count());
         
         wasm_pthread_count++;
-        //vTaskDelay(10 / portTICK_PERIOD_MS);
-        //if (wasm_app_delay){
-        //    vTaskDelay(100 / portTICK_PERIOD_MS);
-        //}
     }
 
 
