@@ -731,7 +731,7 @@ fail:
     return NULL;
 }
 
-/**pthrea
+/**
  * @brief Creates a FreeRTOS task for sending and receiving to and from CAN Controller and creates a pthread to run WASM app
  * 
  * In ESP-IDF, a pthread is just a wrapper on FreeRTOS
