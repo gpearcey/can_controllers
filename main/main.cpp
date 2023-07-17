@@ -52,7 +52,7 @@
 
 #define NATIVE_STACK_SIZE               (32*1024)
 #define NATIVE_HEAP_SIZE                (32*1024)
-#define PTHREAD_STACK_SIZE              4096
+#define PTHREAD_STACK_SIZE              4096*2
 #define MAX_DATA_LENGTH_BTYES           223
 #define BUFFER_SIZE                     (10 + 223*2) //10 bytes for id, 223*2 bytes for data
 #define MY_ESP_LOG_LEVEL                  ESP_LOG_INFO // the log level for this file
@@ -60,6 +60,9 @@
 #define STATS_TASK_PRIO     tskIDLE_PRIORITY //3
 #define STATS_TICKS         pdMS_TO_TICKS(1000)
 #define ARRAY_SIZE_OFFSET   5   //Increase this if print_real_time_stats returns ESP_ERR_INVALID_SIZE
+#define TX_QUEUE_SIZE       300
+#define RX_QUEUE_SIZE       300
+
 // Tag for ESP logging
 static const char* TAG_TWAI_TX = "TWAI_SEND";
 static const char* TAG_TWAI_RX = "TWAI_RECEIVE";
@@ -78,7 +81,8 @@ static TaskHandle_t N2K_send_task_handle = NULL;
 static TaskHandle_t N2K_receive_task_handle = NULL;
 static TaskHandle_t N2K_stats_task_handle = NULL;
 
-QueueHandle_t q_buf;
+QueueHandle_t controller0_tx_queue;
+QueueHandle_t rx_queue;
 
 static unsigned long N2kMsgSentCount=0;
 static unsigned long N2kMsgFailCount=0;
@@ -170,21 +174,41 @@ void RemoveAppDelay(wasm_exec_env_t exec_env){
  * \return 1 if message converted successfully, 0 if not.
 */
 int32_t GetMsg(wasm_exec_env_t exec_env){
-  if (received_msgs_q.empty()){
-    ESP_LOGD(TAG_WASM, "No messages available to send to app\n");
-    return 0;
-  }
-  NMEA_msg msg = received_msgs_q.front();
-  ESP_LOGD(TAG_WASM,"about to add msg with pgn %u \n", msg.PGN);
-  received_msgs_q.pop();//TODO
-  std::string str_msg = nmea_to_string(msg);
+  //if (received_msgs_q.empty()){
+  //  ESP_LOGD(TAG_WASM, "No messages available to send to app\n");
+  //  return 0;
+  //}
+  //NMEA_msg msg = received_msgs_q.front();
+  //ESP_LOGD(TAG_WASM,"about to add msg with pgn %u \n", msg.PGN);
+  //received_msgs_q.pop();//TODO
+  //std::string str_msg = nmea_to_string(msg);
   //ESP_LOGD(TAG," string form of message: ");
   //ESP_LOGD(TAG,str_msg.c_str());
-  strncpy(wasm_buffer, str_msg.c_str(), str_msg.size());
+  NMEA_msg msg;
+  msg.controller_number = 0;
+  msg.priority = 4;
+  msg.PGN = 12576;
+  msg.source = 15;
+  msg.data_length_bytes = 3;
+    for (int i = 0; i < 0; ++i) {
+        msg.data.push_back(static_cast<uint8_t>(i)); // Add values from 0 to 49
+    }
+
+  xQueueSendToBack(rx_queue, &msg, pdMS_TO_TICKS(10));
+  NMEA_msg msg1;
+  //xQueueSendToBack(controller0_tx_queue, &msg, pdMS_TO_TICKS(10));
+  //xQueueReceive(rx_queue, &msg, (100 / portTICK_PERIOD_MS));
+  if (xQueueReceive(rx_queue, &msg1, (100 / portTICK_PERIOD_MS) )){
+      //std::string str_msg = nmea_to_string(msg);
+      //strncpy(wasm_buffer, str_msg.c_str(), str_msg.size());
+      //ESP_LOGI(TAG_WASM, "Added message to wasm app wasm_buffer");
+      //return 0;
+  } 
+  return 0;
+  //strncpy(wasm_buffer, str_msg.c_str(), str_msg.size());
   //ESP_LOGD(TAG,"wasm_buffer has values: %c %c %c %c %c %c %c %c %c \n",*wasm_buffer, *(wasm_buffer+1), *(wasm_buffer + 2), *(wasm_buffer+3), *(wasm_buffer+4), *(wasm_buffer+5), *(wasm_buffer+6), *(wasm_buffer+7), *(wasm_buffer+8));
   
-  ESP_LOGD(TAG_WASM, "Added message to wasm app wasm_buffer");
-  return 1;
+
 }
 
 /****************************************************************************
@@ -221,7 +245,7 @@ int32_t SendMsg(wasm_exec_env_t exec_env, int32_t controller_number, int32_t pri
 
     if (controller_number == 0){
         ESP_LOGD(TAG_WASM,"Added a msg to ctrl0_q with PGN %u \n", msg.PGN);
-        xQueueSendToBack(q_buf, &msg, pdMS_TO_TICKS(10));
+        xQueueSendToBack(controller0_tx_queue, &msg, pdMS_TO_TICKS(10));
         return 1;
     }
 
@@ -394,7 +418,7 @@ static esp_err_t print_real_time_stats(TickType_t xTicksToWait)
         if (k >= 0) {
             uint32_t task_elapsed_time = end_array[k].ulRunTimeCounter - start_array[i].ulRunTimeCounter;
             uint32_t percentage_time = (task_elapsed_time * 100UL) / (total_elapsed_time * portNUM_PROCESSORS);
-            printf("| %s | %"PRIu32" | %"PRIu32"%%\n", start_array[i].pcTaskName, task_elapsed_time, percentage_time);
+            printf("| %s | %" PRIu32 " | %" PRIu32 "%%\n", start_array[i].pcTaskName, task_elapsed_time, percentage_time);
         }
     }
 
@@ -432,12 +456,13 @@ void GetStatus(const char* TAG){
     } 
     twai_status_info_t status;
     NMEA2000.GetTwaiStatus(status);
-    ESP_LOGI(TAG, "Msgs queued for transmission: %" PRIu32" Unread messages in rx queue: %" PRIu32, status.msgs_to_tx, status.msgs_to_rx);
-    ESP_LOGI(TAG, "Msgs lost due to RX FIFO overrun: %" PRIu32, status.rx_overrun_count);
-    ESP_LOGI(TAG, "Msgs lost due to full RX queue: %" PRIu32, status.rx_missed_count);
+    ESP_LOGI(TAG, "Msgs queued for transmission: %" PRIu32 " Unread messages in rx queue: %" PRIu32, status.msgs_to_tx, status.msgs_to_rx);
+    ESP_LOGI(TAG, "Msgs lost due to RX FIFO overrun: %" PRIu32 "", status.rx_overrun_count);
+    ESP_LOGI(TAG, "Msgs lost due to full RX queue: %" PRIu32 "", status.rx_missed_count);
     ESP_LOGI(TAG, "Messages Read: %d, Messages Sent %d", read_msg_count, send_msg_count);
-    ESP_LOGI(TAG, "Received Messages queue size: %d \n", received_msgs_q.size());
-    UBaseType_t msgs_in_q = uxQueueMessagesWaiting(q_buf);
+    UBaseType_t msgs_in_rx_q = uxQueueMessagesWaiting(rx_queue);
+    ESP_LOGI(TAG, "Received Messages queue size: %d \n", msgs_in_rx_q);
+    UBaseType_t msgs_in_q = uxQueueMessagesWaiting(controller0_tx_queue);
     ESP_LOGI(TAG, "Controller 0 send queue size: %d \n", msgs_in_q);
 
     // Task Counters
@@ -459,7 +484,7 @@ static void stats_task(void *arg)
 {
     //Print real time stats periodically
     while (1) {
-        printf("\n\nGetting real time stats over %"PRIu32" ticks\n", STATS_TICKS);
+        printf("\n\nGetting real time stats over %" PRIu32 " ticks\n", STATS_TICKS);
         if (print_real_time_stats(STATS_TICKS) == ESP_OK) {
             printf("Real time stats obtained\n");
         } else {
@@ -522,15 +547,13 @@ void N2K_send_task(void *pvParameters)
     BaseType_t xStatus; 
     for (;;)
     {
-        if( xQueueReceive( q_buf, &msg, (100 / portTICK_PERIOD_MS) ))
+        if( xQueueReceive( controller0_tx_queue, &msg, (100 / portTICK_PERIOD_MS) ))
         {
             SendN2kMsg(msg);
         }
-        //xStatus = xQueueReceive(q_buf, &msg, (100 / portTICK_PERIOD_MS));
-        // this runs everytime the task runs:
+        //xQueueReceive( rx_queue, &msg, (100 / portTICK_PERIOD_MS) );//NEED TO BE HERE or xQueueReceive
         ESP_LOGD(TAG_TWAI_TX, "Send task called");
 
-        //NMEA2000.ParseMessages();   
         tx_task_count++;
         //bool message_sent = SendN2kMsg(msg);
         //vTaskDelay(10 / portTICK_PERIOD_MS); // 10 ms delay
@@ -572,12 +595,19 @@ void HandleNMEA2000Msg(const tN2kMsg &N2kMsg) {
           ESP_LOGE("Message Handle", "data out of range for signed array");
       }
   }
-
-  received_msgs_q.push(msg);
-  ESP_LOGV(TAG_TWAI_TX, "Received messages queue size %d", received_msgs_q.size());
+  //xQueueSendToBack(rx_queue, &msg, pdMS_TO_TICKS(10));
+  //if(xQueueSendToBack(rx_queue, &msg, pdMS_TO_TICKS(10)) == 0){
+  //  ESP_LOGW(TAG_TWAI_RX, "Could not add received message to RX queue");    
+  //}
+  //else{
+  //  ESP_LOGD(TAG_TWAI_RX, " added msg to received queue");
+  //}
+  //xQueueSendToBack(controller0_tx_queue, &msg, pdMS_TO_TICKS(10));
+  ESP_LOGV(TAG_TWAI_RX, "Received messages queue size %d", uxQueueMessagesWaiting(rx_queue));
   read_msg_count++;
-  ESP_LOGD("Message Handle", "added msg to received queue\n");
+  
 }
+
 
 
 /**
@@ -747,16 +777,26 @@ void * iwasm_main(void *arg)
     while (true){
         ESP_LOGD(TAG_WASM, "run main() of the application");
         auto start = std::chrono::high_resolution_clock::now(); 
-        ret = app_instance_main(wasm_module_inst);
+        //NMEA_msg msg;
+        //if (xQueueReceive(rx_queue, &msg, (100 / portTICK_PERIOD_MS) == 1)){
+        //    std::string str_msg = nmea_to_string(msg);
+        //    strncpy(wasm_buffer, str_msg.c_str(), str_msg.size());
+        //    ret = app_instance_main(wasm_module_inst);   
+        //    assert(!ret);
+        //} 
+        //xQueueReceive(rx_queue, &msg, (100 / portTICK_PERIOD_MS));
+        //uxQueueMessagesWaiting(controller0_tx_queue);
+        ret = app_instance_main(wasm_module_inst);   
+        assert(!ret);
         auto end = std::chrono::high_resolution_clock::now();
         auto ns_duration = duration_cast<std::chrono::nanoseconds>(end-start);
         wasm_main_duration = static_cast<double>(ns_duration.count());
-        assert(!ret);
+        
         wasm_pthread_count++;
-        //vTaskDelay(10 / portTICK_PERIOD_MS);
-        if (wasm_app_delay){
-            vTaskDelay(100 / portTICK_PERIOD_MS);
-        }
+        vTaskDelay(100 / portTICK_PERIOD_MS);
+        //if (wasm_app_delay){
+        //    vTaskDelay(100 / portTICK_PERIOD_MS);
+        //}
     }
 
 
@@ -795,7 +835,8 @@ fail:
 */
 extern "C" int app_main(void)
 {
-    q_buf = xQueueCreate(10, sizeof(NMEA_msg));
+    controller0_tx_queue = xQueueCreate(TX_QUEUE_SIZE, sizeof(NMEA_msg));
+    rx_queue = xQueueCreate(RX_QUEUE_SIZE, sizeof(NMEA_msg));
 
     /* Status Task*/
     esp_err_t result = ESP_OK;
@@ -841,9 +882,9 @@ extern "C" int app_main(void)
         "Receive_task",           // A descriptive name for the task for debugging.
         3072,                 // size of the task stack in bytes.
         NULL,                 // Optional pointer to pvParameters
-        tskIDLE_PRIORITY+6, // priority at which the task should run
+        tskIDLE_PRIORITY+7, // priority at which the task should run
         &N2K_receive_task_handle,      // Optional pass back task handle
-        0
+        1
     );
     if (N2K_receive_task_handle == NULL)
     {
