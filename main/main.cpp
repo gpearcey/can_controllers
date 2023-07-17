@@ -163,54 +163,6 @@ void RemoveAppDelay(wasm_exec_env_t exec_env){
     ESP_LOGD(TAG_WASM, "WASM Delay off");
 }
 
-
-/****************************************************************************
- * \brief puts a message in the wasm buffer. 
- * 
- * This function is exported to the WASM app to be called from app to receive a message. 
- * Converts a NMEA_msg object into a string which is placed in the buffer.
- * @param exec_env
- * @todo maybe don't delete the message right away, hould only delete if it was sent sucessfully. 
- * \return 1 if message converted successfully, 0 if not.
-*/
-int32_t GetMsg(wasm_exec_env_t exec_env){
-  //if (received_msgs_q.empty()){
-  //  ESP_LOGD(TAG_WASM, "No messages available to send to app\n");
-  //  return 0;
-  //}
-  //NMEA_msg msg = received_msgs_q.front();
-  //ESP_LOGD(TAG_WASM,"about to add msg with pgn %u \n", msg.PGN);
-  //received_msgs_q.pop();//TODO
-  //std::string str_msg = nmea_to_string(msg);
-  //ESP_LOGD(TAG," string form of message: ");
-  //ESP_LOGD(TAG,str_msg.c_str());
-  //NMEA_msg msg;
-  //msg.controller_number = 0;
-  //msg.priority = 4;
-  //msg.PGN = 12576;
-  //msg.source = 15;
-  //msg.data_length_bytes = 3;
-  //  for (int i = 0; i < 1; ++i) {
-  //      msg.data[i] = static_cast<uint8_t>(i); // Add values from 0 to 49
-  //  }
-
-  //xQueueSendToBack(rx_queue, &msg, pdMS_TO_TICKS(10));
-  NMEA_msg msg;
-  //xQueueSendToBack(controller0_tx_queue, &msg, pdMS_TO_TICKS(10));
-  //xQueueReceive(rx_queue, &msg, (100 / portTICK_PERIOD_MS));
-  if (xQueueReceive(rx_queue, &msg, (100 / portTICK_PERIOD_MS) ==0)){
-      std::string str_msg = nmea_to_string(msg);
-      strncpy(wasm_buffer, str_msg.c_str(), str_msg.size());
-      ESP_LOGD(TAG_WASM, "Added message to wasm app wasm_buffer");
-      return 1;
-  } 
-  return 0;
-  //strncpy(wasm_buffer, str_msg.c_str(), str_msg.size());
-  //ESP_LOGD(TAG,"wasm_buffer has values: %c %c %c %c %c %c %c %c %c \n",*wasm_buffer, *(wasm_buffer+1), *(wasm_buffer + 2), *(wasm_buffer+3), *(wasm_buffer+4), *(wasm_buffer+5), *(wasm_buffer+6), *(wasm_buffer+7), *(wasm_buffer+8));
-  
-
-}
-
 /****************************************************************************
  * \brief Puts a message in a controller send queue
  * 
@@ -585,6 +537,10 @@ void N2K_send_task(void *pvParameters)
  * \return void
  */
 void HandleNMEA2000Msg(const tN2kMsg &N2kMsg) {
+  if (N2kMsg.Source == 14){
+    ESP_LOGD(TAG_TWAI_RX, "source is 14");
+    return;
+  }
   ESP_LOGD(TAG_TWAI_RX, "Message Handler called");
   NMEA_msg msg;
   msg.controller_number = 0;
@@ -694,12 +650,6 @@ void * iwasm_main(void *arg)
             reinterpret_cast<void*>(SendMsg),   
             "(iiii*~)i",
             NULL    
-        },
-        {
-            "GetMsg", 
-            reinterpret_cast<void*>(GetMsg),   
-            "()i", 
-            NULL  
         }
     };
 #if WASM_ENABLE_GLOBAL_HEAP_POOL == 0
