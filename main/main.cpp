@@ -93,7 +93,6 @@ static unsigned long N2kMsgFailCount=0;
 //----------------------------------------------------------------------------------------------------------------------------
 void HandleNMEA2000Msg(const tN2kMsg &N2kMsg);
 std::string nmea_to_string(NMEA_msg& msg);
-void vectorToCharArray(const std::vector<uint8_t>& data_vec, unsigned char (&data_char_arr)[MAX_DATA_LENGTH_BTYES]);
 void uintArrToCharrArray(uint8_t (&data_uint8_arr)[MAX_DATA_LENGTH_BTYES], unsigned char (&data_char_arr)[MAX_DATA_LENGTH_BTYES]);
 //----------------------------------------------------------------------------------------------------------------------------
 // Variables
@@ -174,18 +173,20 @@ int32_t SendMsg(wasm_exec_env_t exec_env, int32_t controller_number, int32_t pri
     msg.PGN = PGN;
     msg.source = source;
     msg.data_length_bytes = data_length_bytes;
-    //msg.data = std::vector<uint8_t>(data, data + data_length_bytes);
 
-
+    // Copy the data bytes
     for (size_t i = 0; i < data_length_bytes; ++i) {
         uint8_t value = static_cast<uint8_t>(data[i]);
         msg.data[i] = value;
     }
 
+    
     if (controller_number == 0){
+        // Add to controller 0 queue
         ESP_LOGD(TAG_WASM,"Added a msg to ctrl0_q with PGN %u \n", msg.PGN);
-        xQueueSendToBack(controller0_tx_queue, &msg, pdMS_TO_TICKS(10));
-        return 1;
+        if (xQueueSendToBack(controller0_tx_queue, &msg, pdMS_TO_TICKS(10))){
+            return 1;
+        }
     }
 
     return 0;
@@ -217,20 +218,14 @@ std::string nmea_to_string(NMEA_msg& msg){
     return s;
     
 }
+
 /**
- * @brief Fills a char array with values from a vector.
- * @todo add in error checking if data > 223
- * @param[in] data_vec
+ * @brief Fills a char array with values from a uint8_t array
+ * 
+ * @param[in] data_uint8_arr
  * @param[out] data_char_arr 
  * 
 */
-void vectorToCharArray(const std::vector<uint8_t>& data_vec, unsigned char (&data_char_arr)[MAX_DATA_LENGTH_BTYES]) {
-    size_t len = data_vec.size();
-    for (size_t i = 0; i < len; ++i) {
-        data_char_arr[i] = static_cast<unsigned char>(data_vec[i]);
-    }
-}
-
 void uint8ArrayToCharrArray(uint8_t (&data_uint8_arr)[MAX_DATA_LENGTH_BTYES], unsigned char (&data_char_arr)[MAX_DATA_LENGTH_BTYES]){
     for (size_t i = 0; i < MAX_DATA_LENGTH_BTYES; ++i) {
         data_char_arr[i] = static_cast<unsigned char>(data_uint8_arr[i]);
@@ -240,18 +235,12 @@ void uint8ArrayToCharrArray(uint8_t (&data_uint8_arr)[MAX_DATA_LENGTH_BTYES], un
 //---------------------------------------------------------------------------------------------------------------------------------------------
 
 /**
- * \brief takes mesages out of controller queue and sends message out on that controller
+ * \brief Sends a message
  * @todo update time to take time from message
  * @todo update for multiple controllers
  * 
 */
 bool SendN2kMsg(NMEA_msg msg) {
-  //if (ctrl0_q.empty()){
-  //  ESP_LOGD(TAG_TWAI_TX, "No messages in send queue to send");
-  //  return false;
-  //}
-  //NMEA_msg msg = ctrl0_q.front();
-  //ctrl0_q.pop();
   tN2kMsg N2kMsg;
   N2kMsg.Priority = msg.priority;
   N2kMsg.PGN = msg.PGN;
@@ -259,9 +248,9 @@ bool SendN2kMsg(NMEA_msg msg) {
   N2kMsg.Destination = 0xff; //not used
 
   N2kMsg.DataLen = msg.data_length_bytes;
-  //vectorToCharArray(msg.data, N2kMsg.Data);
+
   uint8ArrayToCharrArray(msg.data, N2kMsg.Data);
-  //N2kMsg.Data = msg.data;
+
   N2kMsg.MsgTime = N2kMillis64();//TODO 
 
   if ( NMEA2000.SendMsg(N2kMsg) ) {
@@ -459,9 +448,8 @@ void N2K_receive_task(void *pvParameters){
     while(1)
     {
         NMEA2000.CAN_read_frame();
-        NMEA2000.ParseMessages();
+        NMEA2000.ParseMessages(); // Calls message handle whenever a message is available
         rx_task_count++;
-        //vTaskDelay(100 / portTICK_PERIOD_MS); // 10 ms delay
 
     }
     vTaskDelete(NULL); // should never get here...
@@ -497,20 +485,9 @@ void N2K_send_task(void *pvParameters)
         {
             SendN2kMsg(msg);
         }
-        //xQueueReceive( rx_queue, &msg, (100 / portTICK_PERIOD_MS) );//NEED TO BE HERE or xQueueReceive
         ESP_LOGD(TAG_TWAI_TX, "Send task called");
 
-        tx_task_count++;
-        //bool message_sent = SendN2kMsg(msg);
-        //vTaskDelay(10 / portTICK_PERIOD_MS); // 10 ms delay
-        //if (tx_task_count % 3 == 0 || !message_sent){
-        //    vTaskDelay(10 / portTICK_PERIOD_MS); // 10 ms delay
-        //};
-        //ESP_LOGI(TAG_TWAI_TX, "message sent: %d", message_sent);
-        //if (!SendN2kMsg()){
-        //    vTaskDelay(100 / portTICK_PERIOD_MS); // 10 ms delay
-        //}
-        
+        tx_task_count++;        
     }
     vTaskDelete(NULL); // should never get here...
 }
@@ -546,15 +523,13 @@ void HandleNMEA2000Msg(const tN2kMsg &N2kMsg) {
           ESP_LOGE("Message Handle", "data out of range for signed array");
       }
   }
-  //xQueueSendToBack(rx_queue, &msg, pdMS_TO_TICKS(10));
+
   if(xQueueSendToBack(rx_queue, &msg, pdMS_TO_TICKS(10)) == 0){
     ESP_LOGW(TAG_TWAI_RX, "Could not add received message to RX queue");    
   }
   else{
     ESP_LOGD(TAG_TWAI_RX, " added msg to received queue");
   }
-  //xQueueSendToBack(controller0_tx_queue, &msg, pdMS_TO_TICKS(10));
-  //ESP_LOGV(TAG_TWAI_RX, "Received messages queue size %d", uxQueueMessagesWaiting(rx_queue));
   read_msg_count++;
   
 }
@@ -839,7 +814,7 @@ extern "C" int app_main(void)
     ESP_LOGI(TAG_WASM, "Pthread priority: %d", esp_pthread_cfg.prio);
     ESP_LOGI(TAG_WASM, "Pthread core: %d", esp_pthread_cfg.pin_to_core);
     esp_pthread_cfg.prio = tskIDLE_PRIORITY+1; //change priority 
-    esp_pthread_cfg.pin_to_core = 1;
+    esp_pthread_cfg.pin_to_core = 1; // pin to core 1
     ESP_ERROR_CHECK( esp_pthread_set_cfg(&esp_pthread_cfg) );
 
     res = pthread_create(&t, &tattr, iwasm_main, (void *)NULL);
