@@ -28,7 +28,6 @@
 #include "esp_log.h"
 #include <N2kMsg.h>
 #include <NMEA2000_esp32-c6.h> 
-#include <NMEA2000_esp32-c6.h>
 #include <NMEA2000.h>
 #include <N2kMessages.h>
 #include "esp_err.h"
