@@ -74,9 +74,11 @@ $(function() {
 </div><!--header-->
 <div class="contents">
 
-<p>Contains FreeRTOS tasks and pthread for sending and receiving messages between WASM app and CAN controller.  
+<p>Contains FreeRTOS tasks and a pthread for sending and receiving messages between WASM app and CAN controllers.  
 <a href="#details">More...</a></p>
 <div class="textblock"><code>#include &lt;stdio.h&gt;</code><br />
+<code>#include &lt;stdlib.h&gt;</code><br />
+<code>#include &lt;inttypes.h&gt;</code><br />
 <code>#include &quot;freertos/FreeRTOS.h&quot;</code><br />
 <code>#include &quot;freertos/task.h&quot;</code><br />
 <code>#include &quot;<a class="el" href="NMEA__msg_8h_source.html">NMEA_msg.h</a>&quot;</code><br />
@@ -85,6 +87,8 @@ $(function() {
 <code>#include &lt;NMEA2000_esp32-c6.h&gt;</code><br />
 <code>#include &lt;NMEA2000.h&gt;</code><br />
 <code>#include &lt;N2kMessages.h&gt;</code><br />
+<code>#include &quot;esp_err.h&quot;</code><br />
+<code>#include &quot;esp_pthread.h&quot;</code><br />
 <code>#include &quot;driver/gpio.h&quot;</code><br />
 <code>#include &quot;bi-inc/attr_container.h&quot;</code><br />
 <code>#include &quot;wasm_export.h&quot;</code><br />
@@ -94,33 +98,39 @@ $(function() {
 <code>#include &lt;queue&gt;</code><br />
 <code>#include &lt;string&gt;</code><br />
 <code>#include &lt;iomanip&gt;</code><br />
+<code>#include &lt;chrono&gt;</code><br />
 <code>#include &quot;nmea_attack.h&quot;</code><br />
 </div><div class="textblock"><div class="dynheader">
 Include dependency graph for main.cpp:</div>
 <div class="dyncontent">
 <div class="center"><img src="main_8cpp__incl.png" border="0" usemap="#amain_2main_8cpp" alt=""/></div>
 <map name="amain_2main_8cpp" id="amain_2main_8cpp">
-<area shape="rect" title="Contains FreeRTOS tasks and pthread for sending and receiving messages between WASM app and CAN contr..." alt="" coords="1233,5,1351,32"/>
+<area shape="rect" title="Contains FreeRTOS tasks and a pthread for sending and receiving messages between WASM app and CAN con..." alt="" coords="1489,5,1607,32"/>
 <area shape="rect" title=" " alt="" coords="5,80,72,107"/>
-<area shape="rect" title=" " alt="" coords="97,80,247,107"/>
-<area shape="rect" title=" " alt="" coords="272,80,389,107"/>
-<area shape="rect" href="NMEA__msg_8h.html" title="Represents a NMEA 2000 messages." alt="" coords="414,80,522,107"/>
-<area shape="rect" title=" " alt="" coords="546,80,630,107"/>
-<area shape="rect" title=" " alt="" coords="654,80,741,107"/>
-<area shape="rect" title=" " alt="" coords="765,80,936,107"/>
-<area shape="rect" title=" " alt="" coords="961,80,1066,107"/>
-<area shape="rect" title=" " alt="" coords="1091,80,1216,107"/>
-<area shape="rect" title=" " alt="" coords="1240,80,1344,107"/>
-<area shape="rect" title=" " alt="" coords="1369,80,1533,107"/>
-<area shape="rect" title=" " alt="" coords="1557,80,1680,107"/>
-<area shape="rect" title=" " alt="" coords="1705,80,1818,107"/>
-<area shape="rect" title=" " alt="" coords="1843,80,1941,107"/>
-<area shape="rect" title=" " alt="" coords="1966,80,2079,107"/>
-<area shape="rect" title=" " alt="" coords="2103,80,2166,107"/>
-<area shape="rect" title=" " alt="" coords="2191,80,2249,107"/>
-<area shape="rect" title=" " alt="" coords="2273,80,2348,107"/>
-<area shape="rect" href="nmea__attack_8h_source.html" title=" " alt="" coords="2373,80,2491,107"/>
-<area shape="rect" title=" " alt="" coords="437,155,499,181"/>
+<area shape="rect" title=" " alt="" coords="97,80,167,107"/>
+<area shape="rect" title=" " alt="" coords="191,80,278,107"/>
+<area shape="rect" title=" " alt="" coords="302,80,453,107"/>
+<area shape="rect" title=" " alt="" coords="477,80,595,107"/>
+<area shape="rect" href="NMEA__msg_8h.html" title="Represents a NMEA 2000 messages." alt="" coords="619,80,727,107"/>
+<area shape="rect" title=" " alt="" coords="751,80,835,107"/>
+<area shape="rect" title=" " alt="" coords="859,80,946,107"/>
+<area shape="rect" title=" " alt="" coords="971,80,1141,107"/>
+<area shape="rect" title=" " alt="" coords="1166,80,1271,107"/>
+<area shape="rect" title=" " alt="" coords="1296,80,1421,107"/>
+<area shape="rect" title=" " alt="" coords="1446,80,1527,107"/>
+<area shape="rect" title=" " alt="" coords="1552,80,1667,107"/>
+<area shape="rect" title=" " alt="" coords="1691,80,1795,107"/>
+<area shape="rect" title=" " alt="" coords="1819,80,1983,107"/>
+<area shape="rect" title=" " alt="" coords="2008,80,2131,107"/>
+<area shape="rect" title=" " alt="" coords="2155,80,2269,107"/>
+<area shape="rect" title=" " alt="" coords="2293,80,2392,107"/>
+<area shape="rect" title=" " alt="" coords="2417,80,2530,107"/>
+<area shape="rect" title=" " alt="" coords="2554,80,2617,107"/>
+<area shape="rect" title=" " alt="" coords="2641,80,2700,107"/>
+<area shape="rect" title=" " alt="" coords="2724,80,2799,107"/>
+<area shape="rect" title=" " alt="" coords="2823,80,2889,107"/>
+<area shape="rect" href="nmea__attack_8h_source.html" title=" " alt="" coords="2914,80,3033,107"/>
+<area shape="rect" title=" " alt="" coords="642,155,705,181"/>
 </map>
 </div>
 </div><table class="memberdecls">
@@ -141,6 +151,24 @@ Macros</h2></td></tr>
 <tr class="memitem:a6b20d41d6252e9871430c242cb1a56e7"><td class="memItemLeft" align="right" valign="top"><a id="a6b20d41d6252e9871430c242cb1a56e7"></a>
 #define&#160;</td><td class="memItemRight" valign="bottom"><b>BUFFER_SIZE</b>&#160;&#160;&#160;(10 + 223*2)</td></tr>
 <tr class="separator:a6b20d41d6252e9871430c242cb1a56e7"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a22033beafc73a18758e9d1a022d4a6ed"><td class="memItemLeft" align="right" valign="top"><a id="a22033beafc73a18758e9d1a022d4a6ed"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>MY_ESP_LOG_LEVEL</b>&#160;&#160;&#160;ESP_LOG_INFO</td></tr>
+<tr class="separator:a22033beafc73a18758e9d1a022d4a6ed"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:af7a94e088643d957a2d02d9265ab6010"><td class="memItemLeft" align="right" valign="top"><a id="af7a94e088643d957a2d02d9265ab6010"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>STATS_TASK_PRIO</b>&#160;&#160;&#160;tskIDLE_PRIORITY</td></tr>
+<tr class="separator:af7a94e088643d957a2d02d9265ab6010"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a180caf769e3cb391a833e441cb2c6fd5"><td class="memItemLeft" align="right" valign="top"><a id="a180caf769e3cb391a833e441cb2c6fd5"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>STATS_TICKS</b>&#160;&#160;&#160;pdMS_TO_TICKS(1000)</td></tr>
+<tr class="separator:a180caf769e3cb391a833e441cb2c6fd5"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a7c43cc4e702739ba614800838ffbb09c"><td class="memItemLeft" align="right" valign="top"><a id="a7c43cc4e702739ba614800838ffbb09c"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>ARRAY_SIZE_OFFSET</b>&#160;&#160;&#160;5</td></tr>
+<tr class="separator:a7c43cc4e702739ba614800838ffbb09c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a91cd690eeb190bd4abd4ec6d5d39bf59"><td class="memItemLeft" align="right" valign="top"><a id="a91cd690eeb190bd4abd4ec6d5d39bf59"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>TX_QUEUE_SIZE</b>&#160;&#160;&#160;100</td></tr>
+<tr class="separator:a91cd690eeb190bd4abd4ec6d5d39bf59"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a0616225f8714515d1139d62323d2fb60"><td class="memItemLeft" align="right" valign="top"><a id="a0616225f8714515d1139d62323d2fb60"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>RX_QUEUE_SIZE</b>&#160;&#160;&#160;100</td></tr>
+<tr class="separator:a0616225f8714515d1139d62323d2fb60"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="func-members"></a>
 Functions</h2></td></tr>
@@ -148,41 +176,38 @@ Functions</h2></td></tr>
 <tr class="memdesc:a69c2759945fc6b51ee00ca0d06d7ca9b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Creates a NMEA2000 Object.  <a href="main_8cpp.html#a69c2759945fc6b51ee00ca0d06d7ca9b">More...</a><br /></td></tr>
 <tr class="separator:a69c2759945fc6b51ee00ca0d06d7ca9b"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a955ad07241382211a8efdeaa2307443a"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="main_8cpp.html#a955ad07241382211a8efdeaa2307443a">HandleNMEA2000Msg</a> (const tN2kMsg &amp;N2kMsg)</td></tr>
-<tr class="memdesc:a955ad07241382211a8efdeaa2307443a"><td class="mdescLeft">&#160;</td><td class="mdescRight">Creates a <a class="el" href="structNMEA__msg.html">NMEA_msg</a> object and adds it to the received messages queue.  <a href="main_8cpp.html#a955ad07241382211a8efdeaa2307443a">More...</a><br /></td></tr>
+<tr class="memdesc:a955ad07241382211a8efdeaa2307443a"><td class="mdescLeft">&#160;</td><td class="mdescRight">Creates a <a class="el" href="structNMEA__msg.html">NMEA_msg</a> object and adds it to.data the received messages queue.  <a href="main_8cpp.html#a955ad07241382211a8efdeaa2307443a">More...</a><br /></td></tr>
 <tr class="separator:a955ad07241382211a8efdeaa2307443a"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ac9bab62089a524c93c540021803c6009"><td class="memItemLeft" align="right" valign="top">std::string&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="main_8cpp.html#ac9bab62089a524c93c540021803c6009">nmea_to_string</a> (<a class="el" href="structNMEA__msg.html">NMEA_msg</a> &amp;msg)</td></tr>
 <tr class="memdesc:ac9bab62089a524c93c540021803c6009"><td class="mdescLeft">&#160;</td><td class="mdescRight">converts a <a class="el" href="structNMEA__msg.html">NMEA_msg</a> to a string  <a href="main_8cpp.html#ac9bab62089a524c93c540021803c6009">More...</a><br /></td></tr>
 <tr class="separator:ac9bab62089a524c93c540021803c6009"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:adc8e3680bd2b74044687c09abb1bcabf"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="main_8cpp.html#adc8e3680bd2b74044687c09abb1bcabf">vectorToCharArray</a> (const std::vector&lt; uint8_t &gt; &amp;data_vec, unsigned char(&amp;data_char_arr)[MAX_DATA_LENGTH_BTYES])</td></tr>
-<tr class="memdesc:adc8e3680bd2b74044687c09abb1bcabf"><td class="mdescLeft">&#160;</td><td class="mdescRight">Fills a char array with values from a vector.  <a href="main_8cpp.html#adc8e3680bd2b74044687c09abb1bcabf">More...</a><br /></td></tr>
-<tr class="separator:adc8e3680bd2b74044687c09abb1bcabf"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab74339dc719044b370c6c64a2cb2a4a6"><td class="memItemLeft" align="right" valign="top"><a id="ab74339dc719044b370c6c64a2cb2a4a6"></a>
+void&#160;</td><td class="memItemRight" valign="bottom"><b>uintArrToCharrArray</b> (uint8_t(&amp;data_uint8_arr)[MAX_DATA_LENGTH_BTYES], unsigned char(&amp;data_char_arr)[MAX_DATA_LENGTH_BTYES])</td></tr>
+<tr class="separator:ab74339dc719044b370c6c64a2cb2a4a6"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a54c259f26c52ff03f9ab1d90ba06dadf"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="main_8cpp.html#a54c259f26c52ff03f9ab1d90ba06dadf">PrintStr</a> (wasm_exec_env_t exec_env, uint8_t *input, int32_t length)</td></tr>
 <tr class="memdesc:a54c259f26c52ff03f9ab1d90ba06dadf"><td class="mdescLeft">&#160;</td><td class="mdescRight">prints a uint8_t array to terminal  <a href="main_8cpp.html#a54c259f26c52ff03f9ab1d90ba06dadf">More...</a><br /></td></tr>
 <tr class="separator:a54c259f26c52ff03f9ab1d90ba06dadf"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:af074f4615d09245f6b9582f613e1e570"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="main_8cpp.html#af074f4615d09245f6b9582f613e1e570">PrintInt32</a> (wasm_exec_env_t exec_env, int32_t number, int32_t hex)</td></tr>
 <tr class="memdesc:af074f4615d09245f6b9582f613e1e570"><td class="mdescLeft">&#160;</td><td class="mdescRight">prints a integer to terminal  <a href="main_8cpp.html#af074f4615d09245f6b9582f613e1e570">More...</a><br /></td></tr>
 <tr class="separator:af074f4615d09245f6b9582f613e1e570"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a56a9e002e998217a1b1bf05ec84d1093"><td class="memItemLeft" align="right" valign="top"><a id="a56a9e002e998217a1b1bf05ec84d1093"></a>
-void&#160;</td><td class="memItemRight" valign="bottom"><b>AddAppDelay</b> (wasm_exec_env_t exec_env)</td></tr>
-<tr class="separator:a56a9e002e998217a1b1bf05ec84d1093"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ab5e3d97a79bfe28808d355b6f6aafae1"><td class="memItemLeft" align="right" valign="top"><a id="ab5e3d97a79bfe28808d355b6f6aafae1"></a>
-void&#160;</td><td class="memItemRight" valign="bottom"><b>RemoveAppDelay</b> (wasm_exec_env_t exec_env)</td></tr>
-<tr class="separator:ab5e3d97a79bfe28808d355b6f6aafae1"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ac689e9c910be33f383bb0d6421459c87"><td class="memItemLeft" align="right" valign="top"><a id="ac689e9c910be33f383bb0d6421459c87"></a>
-int32_t&#160;</td><td class="memItemRight" valign="bottom"><b>GetMsg</b> (wasm_exec_env_t exec_env)</td></tr>
-<tr class="separator:ac689e9c910be33f383bb0d6421459c87"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a0f2304279f04a46457288b6d28fea042"><td class="memItemLeft" align="right" valign="top"><a id="a0f2304279f04a46457288b6d28fea042"></a>
 int32_t&#160;</td><td class="memItemRight" valign="bottom"><b>SendMsg</b> (wasm_exec_env_t exec_env, int32_t controller_number, int32_t priority, int32_t PGN, int32_t source, uint8_t *data, int32_t data_length_bytes)</td></tr>
 <tr class="separator:a0f2304279f04a46457288b6d28fea042"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ac894d2ff5b41ee9ca73d7adb560d9416"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="main_8cpp.html#ac894d2ff5b41ee9ca73d7adb560d9416">SendN2kMsg</a> ()</td></tr>
-<tr class="memdesc:ac894d2ff5b41ee9ca73d7adb560d9416"><td class="mdescLeft">&#160;</td><td class="mdescRight">takes mesages out of controller queue and sends message out on that controller  <a href="main_8cpp.html#ac894d2ff5b41ee9ca73d7adb560d9416">More...</a><br /></td></tr>
-<tr class="separator:ac894d2ff5b41ee9ca73d7adb560d9416"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a106a265fd6a9f0387e494ba25c7acf60"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="main_8cpp.html#a106a265fd6a9f0387e494ba25c7acf60">uint8ArrayToCharrArray</a> (uint8_t(&amp;data_uint8_arr)[MAX_DATA_LENGTH_BTYES], unsigned char(&amp;data_char_arr)[MAX_DATA_LENGTH_BTYES])</td></tr>
+<tr class="memdesc:a106a265fd6a9f0387e494ba25c7acf60"><td class="mdescLeft">&#160;</td><td class="mdescRight">Fills a char array with values from a uint8_t array.  <a href="main_8cpp.html#a106a265fd6a9f0387e494ba25c7acf60">More...</a><br /></td></tr>
+<tr class="separator:a106a265fd6a9f0387e494ba25c7acf60"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a4e126984e064bcc2a55c7455c3e3f6c3"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="main_8cpp.html#a4e126984e064bcc2a55c7455c3e3f6c3">SendN2kMsg</a> (<a class="el" href="structNMEA__msg.html">NMEA_msg</a> msg)</td></tr>
+<tr class="memdesc:a4e126984e064bcc2a55c7455c3e3f6c3"><td class="mdescLeft">&#160;</td><td class="mdescRight">Sends a message.  <a href="main_8cpp.html#a4e126984e064bcc2a55c7455c3e3f6c3">More...</a><br /></td></tr>
+<tr class="separator:a4e126984e064bcc2a55c7455c3e3f6c3"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:afe866e139af388e977898e984eef5408"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="main_8cpp.html#afe866e139af388e977898e984eef5408">GetStatus</a> (const char *TAG)</td></tr>
+<tr class="memdesc:afe866e139af388e977898e984eef5408"><td class="mdescLeft">&#160;</td><td class="mdescRight">Retrieves twai status and alerts.  <a href="main_8cpp.html#afe866e139af388e977898e984eef5408">More...</a><br /></td></tr>
+<tr class="separator:afe866e139af388e977898e984eef5408"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a5504d2805dc0ba6317d0a5c83f22186e"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="main_8cpp.html#a5504d2805dc0ba6317d0a5c83f22186e">N2K_receive_task</a> (void *pvParameters)</td></tr>
 <tr class="memdesc:a5504d2805dc0ba6317d0a5c83f22186e"><td class="mdescLeft">&#160;</td><td class="mdescRight">FreeRTOS task for receiving messages from CAN controller.  <a href="main_8cpp.html#a5504d2805dc0ba6317d0a5c83f22186e">More...</a><br /></td></tr>
 <tr class="separator:a5504d2805dc0ba6317d0a5c83f22186e"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:abcaa9f46955f9eaa3af477ed9e5c9d53"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="main_8cpp.html#abcaa9f46955f9eaa3af477ed9e5c9d53">N2K_task</a> (void *pvParameters)</td></tr>
-<tr class="memdesc:abcaa9f46955f9eaa3af477ed9e5c9d53"><td class="mdescLeft">&#160;</td><td class="mdescRight">FreeRTOS task for processing and sending messages from CAN controller with NMEA2000 library.  <a href="main_8cpp.html#abcaa9f46955f9eaa3af477ed9e5c9d53">More...</a><br /></td></tr>
-<tr class="separator:abcaa9f46955f9eaa3af477ed9e5c9d53"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a71c34574289ce06034467cc2b49826fa"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="main_8cpp.html#a71c34574289ce06034467cc2b49826fa">N2K_send_task</a> (void *pvParameters)</td></tr>
+<tr class="memdesc:a71c34574289ce06034467cc2b49826fa"><td class="mdescLeft">&#160;</td><td class="mdescRight">FreeRTOS task for processing and sending messages from CAN controller with NMEA2000 library.  <a href="main_8cpp.html#a71c34574289ce06034467cc2b49826fa">More...</a><br /></td></tr>
+<tr class="separator:a71c34574289ce06034467cc2b49826fa"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a3a1ac44c68d18bdde17fd90634a71222"><td class="memItemLeft" align="right" valign="top">void *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="main_8cpp.html#a3a1ac44c68d18bdde17fd90634a71222">iwasm_main</a> (void *arg)</td></tr>
 <tr class="memdesc:a3a1ac44c68d18bdde17fd90634a71222"><td class="mdescLeft">&#160;</td><td class="mdescRight">WASM pthread to host wasm app.  <a href="main_8cpp.html#a3a1ac44c68d18bdde17fd90634a71222">More...</a><br /></td></tr>
 <tr class="separator:a3a1ac44c68d18bdde17fd90634a71222"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -192,31 +217,49 @@ int32_t&#160;</td><td class="memItemRight" valign="bottom"><b>SendMsg</b> (wasm_
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="var-members"></a>
 Variables</h2></td></tr>
+<tr class="memitem:a88033e9988be1a1712cc1a5cad30a386"><td class="memItemLeft" align="right" valign="top"><a id="a88033e9988be1a1712cc1a5cad30a386"></a>
+QueueHandle_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="main_8cpp.html#a88033e9988be1a1712cc1a5cad30a386">controller0_tx_queue</a></td></tr>
+<tr class="memdesc:a88033e9988be1a1712cc1a5cad30a386"><td class="mdescLeft">&#160;</td><td class="mdescRight">Queue that stores messages to be sent out on controller 0. <br /></td></tr>
+<tr class="separator:a88033e9988be1a1712cc1a5cad30a386"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a11b6808d4d3da250b22c4e713bfdb52d"><td class="memItemLeft" align="right" valign="top"><a id="a11b6808d4d3da250b22c4e713bfdb52d"></a>
+QueueHandle_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="main_8cpp.html#a11b6808d4d3da250b22c4e713bfdb52d">rx_queue</a></td></tr>
+<tr class="memdesc:a11b6808d4d3da250b22c4e713bfdb52d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Queue that stores all messages received on all controllers. <br /></td></tr>
+<tr class="separator:a11b6808d4d3da250b22c4e713bfdb52d"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a48df899df614d98285854d93c794813b"><td class="memItemLeft" align="right" valign="top"><a id="a48df899df614d98285854d93c794813b"></a>
 char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="main_8cpp.html#a48df899df614d98285854d93c794813b">wasm_buffer</a> = NULL</td></tr>
 <tr class="memdesc:a48df899df614d98285854d93c794813b"><td class="mdescLeft">&#160;</td><td class="mdescRight">buffer allocated for wasm app, used to hold received messages so app can access them <br /></td></tr>
 <tr class="separator:a48df899df614d98285854d93c794813b"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a8cce0fd0915d585bc2600a9520e6c9e9"><td class="memItemLeft" align="right" valign="top"><a id="a8cce0fd0915d585bc2600a9520e6c9e9"></a>
-std::queue&lt; <a class="el" href="structNMEA__msg.html">NMEA_msg</a> &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="main_8cpp.html#a8cce0fd0915d585bc2600a9520e6c9e9">received_msgs_q</a></td></tr>
-<tr class="memdesc:a8cce0fd0915d585bc2600a9520e6c9e9"><td class="mdescLeft">&#160;</td><td class="mdescRight">Queue that stores all messages received on all controllers. <br /></td></tr>
-<tr class="separator:a8cce0fd0915d585bc2600a9520e6c9e9"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aab2ee5435f26d13831ec405df0a18ed6"><td class="memItemLeft" align="right" valign="top"><a id="aab2ee5435f26d13831ec405df0a18ed6"></a>
-std::queue&lt; <a class="el" href="structNMEA__msg.html">NMEA_msg</a> &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="main_8cpp.html#aab2ee5435f26d13831ec405df0a18ed6">ctrl0_q</a></td></tr>
-<tr class="memdesc:aab2ee5435f26d13831ec405df0a18ed6"><td class="mdescLeft">&#160;</td><td class="mdescRight">Queue that stores messages to be sent out on controller 0. <br /></td></tr>
-<tr class="separator:aab2ee5435f26d13831ec405df0a18ed6"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a8221896ec9a40b4527a5ecba283b4281"><td class="memItemLeft" align="right" valign="top"><a id="a8221896ec9a40b4527a5ecba283b4281"></a>
-bool&#160;</td><td class="memItemRight" valign="bottom"><b>wasm_app_delay</b> = true</td></tr>
-<tr class="separator:a8221896ec9a40b4527a5ecba283b4281"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ae4ab25cbe521c019efe65e33cbd24789"><td class="memItemLeft" align="right" valign="top"><a id="ae4ab25cbe521c019efe65e33cbd24789"></a>
-int&#160;</td><td class="memItemRight" valign="bottom"><b>read_msg_count</b> = 0</td></tr>
+int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="main_8cpp.html#ae4ab25cbe521c019efe65e33cbd24789">read_msg_count</a> = 0</td></tr>
+<tr class="memdesc:ae4ab25cbe521c019efe65e33cbd24789"><td class="mdescLeft">&#160;</td><td class="mdescRight">Used to track messages read. <br /></td></tr>
 <tr class="separator:ae4ab25cbe521c019efe65e33cbd24789"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a8fd7e8735633201282654440183b0fee"><td class="memItemLeft" align="right" valign="top"><a id="a8fd7e8735633201282654440183b0fee"></a>
-int&#160;</td><td class="memItemRight" valign="bottom"><b>send_msg_count</b> = 0</td></tr>
+int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="main_8cpp.html#a8fd7e8735633201282654440183b0fee">send_msg_count</a> = 0</td></tr>
+<tr class="memdesc:a8fd7e8735633201282654440183b0fee"><td class="mdescLeft">&#160;</td><td class="mdescRight">Used to track messages sent. <br /></td></tr>
 <tr class="separator:a8fd7e8735633201282654440183b0fee"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aeb8f55ef0d019e0d245fb1985dbe2a2a"><td class="memItemLeft" align="right" valign="top"><a id="aeb8f55ef0d019e0d245fb1985dbe2a2a"></a>
+uint32_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="main_8cpp.html#aeb8f55ef0d019e0d245fb1985dbe2a2a">alerts_to_enable</a> = TWAI_ALERT_RX_DATA | TWAI_ALERT_TX_FAILED | TWAI_ALERT_RX_QUEUE_FULL</td></tr>
+<tr class="memdesc:aeb8f55ef0d019e0d245fb1985dbe2a2a"><td class="mdescLeft">&#160;</td><td class="mdescRight">Sets which alerts to enable for TWAI controller. <br /></td></tr>
+<tr class="separator:aeb8f55ef0d019e0d245fb1985dbe2a2a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a3c937c1adf8ddbc8393c5c835456b0a4"><td class="memItemLeft" align="right" valign="top"><a id="a3c937c1adf8ddbc8393c5c835456b0a4"></a>
+int&#160;</td><td class="memItemRight" valign="bottom"><b>rx_task_count</b> = 0</td></tr>
+<tr class="separator:a3c937c1adf8ddbc8393c5c835456b0a4"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a09d5aae9476513386bce59e21f4747bd"><td class="memItemLeft" align="right" valign="top"><a id="a09d5aae9476513386bce59e21f4747bd"></a>
+int&#160;</td><td class="memItemRight" valign="bottom"><b>tx_task_count</b> = 0</td></tr>
+<tr class="separator:a09d5aae9476513386bce59e21f4747bd"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a8ddaf2882653dbb9f9c8a2299486585f"><td class="memItemLeft" align="right" valign="top"><a id="a8ddaf2882653dbb9f9c8a2299486585f"></a>
+int&#160;</td><td class="memItemRight" valign="bottom"><b>wasm_pthread_count</b> = 0</td></tr>
+<tr class="separator:a8ddaf2882653dbb9f9c8a2299486585f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a30fb82f80237ef76f06cc22f503ccaa4"><td class="memItemLeft" align="right" valign="top"><a id="a30fb82f80237ef76f06cc22f503ccaa4"></a>
+int&#160;</td><td class="memItemRight" valign="bottom"><b>stats_task_count</b> = 0</td></tr>
+<tr class="separator:a30fb82f80237ef76f06cc22f503ccaa4"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab0b28aef7faa7753f9293fd57b8629bc"><td class="memItemLeft" align="right" valign="top"><a id="ab0b28aef7faa7753f9293fd57b8629bc"></a>
+double&#160;</td><td class="memItemRight" valign="bottom"><b>wasm_main_duration</b></td></tr>
+<tr class="separator:ab0b28aef7faa7753f9293fd57b8629bc"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
-<div class="textblock"><p>Contains FreeRTOS tasks and pthread for sending and receiving messages between WASM app and CAN controller. </p>
-<dl class="todo"><dt><b><a class="el" href="todo.html#_todo000001">Todo:</a></b></dt><dd>convert relavent ESP_LOGI to ESP_LOGD </dd></dl>
+<div class="textblock"><p>Contains FreeRTOS tasks and a pthread for sending and receiving messages between WASM app and CAN controllers. </p>
+<dl class="todo"><dt><b><a class="el" href="todo.html#_todo000001">Todo:</a></b></dt><dd>convert unessesary ESP_LOGI messages to ESP_LOGD </dd></dl>
 </div><h2 class="groupheader">Function Documentation</h2>
 <a id="a144c9a97815e4b794fd4352aedd33695"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a144c9a97815e4b794fd4352aedd33695">&#9670;&nbsp;</a></span>app_main()</h2>
@@ -239,6 +282,33 @@ int&#160;</td><td class="memItemRight" valign="bottom"><b>send_msg_count</b> = 0
 
 </div>
 </div>
+<a id="afe866e139af388e977898e984eef5408"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#afe866e139af388e977898e984eef5408">&#9670;&nbsp;</a></span>GetStatus()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void GetStatus </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>TAG</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Retrieves twai status and alerts. </p>
+<p>Used to display information regarding queue's filling up, and how many messages have been sent/received.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">TAG</td><td></td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
 <a id="a955ad07241382211a8efdeaa2307443a"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a955ad07241382211a8efdeaa2307443a">&#9670;&nbsp;</a></span>HandleNMEA2000Msg()</h2>
 
@@ -255,8 +325,8 @@ int&#160;</td><td class="memItemRight" valign="bottom"><b>send_msg_count</b> = 0
       </table>
 </div><div class="memdoc">
 
-<p>Creates a <a class="el" href="structNMEA__msg.html">NMEA_msg</a> object and adds it to the received messages queue. </p>
-<dl class="todo"><dt><b><a class="el" href="todo.html#_todo000006">Todo:</a></b></dt><dd>handle out of range data </dd></dl>
+<p>Creates a <a class="el" href="structNMEA__msg.html">NMEA_msg</a> object and adds it to.data the received messages queue. </p>
+<dl class="todo"><dt><b><a class="el" href="todo.html#_todo000005">Todo:</a></b></dt><dd>handle out of range data </dd></dl>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramname">N2kMsg</td><td>Reference to the N2KMs being handled </td></tr>
@@ -320,14 +390,14 @@ int&#160;</td><td class="memItemRight" valign="bottom"><b>send_msg_count</b> = 0
 
 </div>
 </div>
-<a id="abcaa9f46955f9eaa3af477ed9e5c9d53"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#abcaa9f46955f9eaa3af477ed9e5c9d53">&#9670;&nbsp;</a></span>N2K_task()</h2>
+<a id="a71c34574289ce06034467cc2b49826fa"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a71c34574289ce06034467cc2b49826fa">&#9670;&nbsp;</a></span>N2K_send_task()</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">void N2K_task </td>
+          <td class="memname">void N2K_send_task </td>
           <td>(</td>
           <td class="paramtype">void *&#160;</td>
           <td class="paramname"><em>pvParameters</em></td><td>)</td>
@@ -337,7 +407,8 @@ int&#160;</td><td class="memItemRight" valign="bottom"><b>send_msg_count</b> = 0
 </div><div class="memdoc">
 
 <p>FreeRTOS task for processing and sending messages from CAN controller with NMEA2000 library. </p>
-<dl class="todo"><dt><b><a class="el" href="todo.html#_todo000005">Todo:</a></b></dt><dd>frame buffer should be 32 - see if this works </dd></dl>
+<p>Initializes NMEA2000 Object, then sends messages in loop.</p>
+<dl class="todo"><dt><b><a class="el" href="todo.html#_todo000004">Todo:</a></b></dt><dd>frame buffer should be 32 - see if this works </dd></dl>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramname">pvParameters</td><td></td></tr>
@@ -496,39 +567,40 @@ int&#160;</td><td class="memItemRight" valign="bottom"><b>send_msg_count</b> = 0
 
 </div>
 </div>
-<a id="ac894d2ff5b41ee9ca73d7adb560d9416"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ac894d2ff5b41ee9ca73d7adb560d9416">&#9670;&nbsp;</a></span>SendN2kMsg()</h2>
+<a id="a4e126984e064bcc2a55c7455c3e3f6c3"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a4e126984e064bcc2a55c7455c3e3f6c3">&#9670;&nbsp;</a></span>SendN2kMsg()</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">void SendN2kMsg </td>
+          <td class="memname">bool SendN2kMsg </td>
           <td>(</td>
-          <td class="paramname"></td><td>)</td>
+          <td class="paramtype"><a class="el" href="structNMEA__msg.html">NMEA_msg</a>&#160;</td>
+          <td class="paramname"><em>msg</em></td><td>)</td>
           <td></td>
         </tr>
       </table>
 </div><div class="memdoc">
 
-<p>takes mesages out of controller queue and sends message out on that controller </p>
-<dl class="todo"><dt><b><a class="el" href="todo.html#_todo000004">Todo:</a></b></dt><dd><p class="startdd">update time to take time from message </p>
+<p>Sends a message. </p>
+<dl class="todo"><dt><b><a class="el" href="todo.html#_todo000003">Todo:</a></b></dt><dd><p class="startdd">update time to take time from message </p>
 <p class="enddd">update for multiple controllers</p>
 </dd></dl>
 
 </div>
 </div>
-<a id="adc8e3680bd2b74044687c09abb1bcabf"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#adc8e3680bd2b74044687c09abb1bcabf">&#9670;&nbsp;</a></span>vectorToCharArray()</h2>
+<a id="a106a265fd6a9f0387e494ba25c7acf60"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a106a265fd6a9f0387e494ba25c7acf60">&#9670;&nbsp;</a></span>uint8ArrayToCharrArray()</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">void vectorToCharArray </td>
+          <td class="memname">void uint8ArrayToCharrArray </td>
           <td>(</td>
-          <td class="paramtype">const std::vector&lt; uint8_t &gt; &amp;&#160;</td>
-          <td class="paramname"><em>data_vec</em>, </td>
+          <td class="paramtype">uint8_t(&amp;)&#160;</td>
+          <td class="paramname"><em>data_uint8_arr</em>[MAX_DATA_LENGTH_BTYES], </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
@@ -544,11 +616,10 @@ int&#160;</td><td class="memItemRight" valign="bottom"><b>send_msg_count</b> = 0
       </table>
 </div><div class="memdoc">
 
-<p>Fills a char array with values from a vector. </p>
-<dl class="todo"><dt><b><a class="el" href="todo.html#_todo000003">Todo:</a></b></dt><dd>add in error checking if data &gt; 223 </dd></dl>
+<p>Fills a char array with values from a uint8_t array. </p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">data_vec</td><td></td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">data_uint8_arr</td><td></td></tr>
     <tr><td class="paramdir">[out]</td><td class="paramname">data_char_arr</td><td></td></tr>
   </table>
   </dd>

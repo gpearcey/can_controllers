@@ -1,4 +1,4 @@
 var searchData=
 [
-  ['ctrl0_5fq_35',['ctrl0_q',['../main_8cpp.html#aab2ee5435f26d13831ec405df0a18ed6',1,'main.cpp']]]
+  ['alerts_5fto_5fenable_38',['alerts_to_enable',['../main_8cpp.html#aeb8f55ef0d019e0d245fb1985dbe2a2a',1,'main.cpp']]]
 ];

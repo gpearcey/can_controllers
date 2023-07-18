@@ -1,4 +1,4 @@
 var searchData=
 [
-  ['esp32n2kstream_3',['ESP32N2kStream',['../classESP32N2kStream.html',1,'']]]
+  ['getstatus_4',['GetStatus',['../main_8cpp.html#afe866e139af388e977898e984eef5408',1,'main.cpp']]]
 ];

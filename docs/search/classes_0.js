@@ -1,4 +1,4 @@
 var searchData=
 [
-  ['esp32n2kstream_20',['ESP32N2kStream',['../classESP32N2kStream.html',1,'']]]
+  ['nmea_5fmsg_23',['NMEA_msg',['../structNMEA__msg.html',1,'']]]
 ];

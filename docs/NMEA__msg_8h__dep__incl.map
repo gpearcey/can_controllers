@@ -1,4 +1,4 @@
 <map id="main/NMEA_msg.h" name="main/NMEA_msg.h">
 <area shape="rect" id="node1" title="Represents a NMEA 2000 messages." alt="" coords="5,5,151,32"/>
-<area shape="rect" id="node2" href="$main_8cpp.html" title="Contains FreeRTOS tasks and pthread for sending and receiving messages between WASM app and CAN contr..." alt="" coords="19,80,137,107"/>
+<area shape="rect" id="node2" href="$main_8cpp.html" title="Contains FreeRTOS tasks and a pthread for sending and receiving messages between WASM app and CAN con..." alt="" coords="19,80,137,107"/>
 </map>

@@ -1,4 +1,5 @@
 var searchData=
 [
-  ['received_5fmsgs_5fq_15',['received_msgs_q',['../main_8cpp.html#a8cce0fd0915d585bc2600a9520e6c9e9',1,'main.cpp']]]
+  ['read_5fmsg_5fcount_16',['read_msg_count',['../main_8cpp.html#ae4ab25cbe521c019efe65e33cbd24789',1,'main.cpp']]],
+  ['rx_5fqueue_17',['rx_queue',['../main_8cpp.html#a11b6808d4d3da250b22c4e713bfdb52d',1,'main.cpp']]]
 ];

@@ -1,4 +1,4 @@
 var searchData=
 [
-  ['vectortochararray_18',['vectorToCharArray',['../main_8cpp.html#adc8e3680bd2b74044687c09abb1bcabf',1,'main.cpp']]]
+  ['uint8arraytocharrarray_21',['uint8ArrayToCharrArray',['../main_8cpp.html#a106a265fd6a9f0387e494ba25c7acf60',1,'main.cpp']]]
 ];
