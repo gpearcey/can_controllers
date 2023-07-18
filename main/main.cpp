@@ -443,6 +443,16 @@ static void stats_task(void *arg)
 */
 void N2K_receive_task(void *pvParameters){
     esp_log_level_set(TAG_TWAI_RX, MY_ESP_LOG_LEVEL);
+    NMEA2000.SetN2kCANMsgBufSize(8);
+    NMEA2000.SetN2kCANReceiveFrameBufSize(250);
+    NMEA2000.EnableForward(false);               
+
+    NMEA2000.SetMsgHandler(HandleNMEA2000Msg);
+    NMEA2000.SetMode(tNMEA2000::N2km_ListenAndSend);
+    
+    NMEA2000.Open();
+
+    NMEA2000.ConfigureAlerts(alerts_to_enable);
 
     while(1)
     {
@@ -466,17 +476,6 @@ void N2K_send_task(void *pvParameters)
 {   
     esp_log_level_set(TAG_TWAI_TX, MY_ESP_LOG_LEVEL);
     ESP_LOGI(TAG_TWAI_TX, "Starting N2k_task");
-    NMEA2000.SetN2kCANMsgBufSize(8);
-    NMEA2000.SetN2kCANReceiveFrameBufSize(250);
-    NMEA2000.EnableForward(false);               
-
-    NMEA2000.SetMsgHandler(HandleNMEA2000Msg);
-    NMEA2000.SetMode(tNMEA2000::N2km_ListenAndSend);
-    
-    NMEA2000.Open();
-
-    NMEA2000.ConfigureAlerts(alerts_to_enable);
-
     NMEA_msg msg;
     for (;;)
     {
@@ -759,7 +758,7 @@ extern "C" int app_main(void)
         goto err_out;
     }
 
-    /* Init and sending task */
+    /* Sending task */
     ESP_LOGV(TAG_WASM, "create task");
     xTaskCreatePinnedToCore(
         &N2K_send_task,            // Pointer to the task entry function.
