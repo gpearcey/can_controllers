@@ -229,6 +229,9 @@ void uint8ArrayToCharrArray(uint8_t (&data_uint8_arr)[MAX_DATA_LENGTH_BTYES], un
 
 /**
  * \brief Sends a message
+ * 
+ * Converts NMEA-msg to the NMEA2000 Library N2kMsg format and sends the message
+ * 
  * @todo update time to take time from message
  * @todo update for multiple controllers
  * 
@@ -448,6 +451,7 @@ void N2K_receive_task(void *pvParameters){
 
     NMEA2000.ConfigureAlerts(alerts_to_enable);
 
+    // Task Loop
     while(1)
     {
         NMEA2000.CAN_read_frame();
@@ -471,6 +475,8 @@ void N2K_send_task(void *pvParameters)
     esp_log_level_set(TAG_TWAI_TX, MY_ESP_LOG_LEVEL);
     ESP_LOGI(TAG_TWAI_TX, "Starting N2k_task");
     NMEA_msg msg;
+
+    // Task Loop
     for (;;)
     {
         if( xQueueReceive( controller0_tx_queue, &msg, (100 / portTICK_PERIOD_MS) ))
@@ -674,6 +680,7 @@ void * iwasm_main(void *arg)
         goto fail;
     }
 
+    // Task Loop
     while (true){
         ESP_LOGD(TAG_WASM, "run main() of the application");
         auto start = std::chrono::high_resolution_clock::now(); 
