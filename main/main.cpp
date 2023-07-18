@@ -1,22 +1,16 @@
 /**
  * @file main.cpp
  * 
- * @brief Contains FreeRTOS tasks and pthread for sending and receiving messages between WASM app and CAN controller.
- * @todo convert relavent ESP_LOGI to ESP_LOGD
+ * @brief Contains FreeRTOS tasks and a pthread for sending and receiving messages between WASM app and CAN controllers.
+ * @todo convert unessesary ESP_LOGI messages to ESP_LOGD
 */
 
 /** 
  * @mainpage Can Controllers Documentation
- * @section intro_sec Introduction
- * This is the Triangle C++ library for C++ Documentation Tutorial.
- * @section install_sec Installation
- *
- * @subsection install_dependencies Installing Dependencies
- * Do somethings ...
- * @subsection install_library Installing Library
- * Do somethings ...
- * @subsection install_example Installing Examples
- * Do somethings ...
+ * 
+ * This is the documentation for the firmware on the esp32 boards for the NMEA T connector project. 
+ * These pages contain class and function descriptions. For installation and more detailed instructions, please visit the
+ * <a href="https://cyberboat.gitbook.io/cyberboat/">project wiki</a> 
  */
 
 #include <stdio.h>
