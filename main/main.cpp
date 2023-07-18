@@ -1,35 +1,31 @@
 /**
  * @file main.cpp
  * 
- * @brief Contains FreeRTOS tasks and pthread for sending and receiving messages between WASM app and CAN controller.
- * @todo convert relavent ESP_LOGI to ESP_LOGD
+ * @brief Contains FreeRTOS tasks and a pthread for sending and receiving messages between WASM app and CAN controllers.
+ * @todo convert unessesary ESP_LOGI messages to ESP_LOGD
 */
 
 /** 
  * @mainpage Can Controllers Documentation
- * @section intro_sec Introduction
- * This is the Triangle C++ library for C++ Documentation Tutorial.
- * @section install_sec Installation
- *
- * @subsection install_dependencies Installing Dependencies
- * Do somethings ...
- * @subsection install_library Installing Library
- * Do somethings ...
- * @subsection install_example Installing Examples
- * Do somethings ...
+ * 
+ * This is the documentation for the firmware on the esp32 boards for the NMEA T connector project. 
+ * These pages contain class and function descriptions. For installation and more detailed instructions, please visit the
+ * <a href="https://cyberboat.gitbook.io/cyberboat/">project wiki</a> 
  */
 
 #include <stdio.h>
-
+#include <stdlib.h>
+#include <inttypes.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "NMEA_msg.h"
 #include "esp_log.h"
 #include <N2kMsg.h>
 #include <NMEA2000_esp32-c6.h> 
-#include <NMEA2000_esp32-c6.h>
 #include <NMEA2000.h>
 #include <N2kMessages.h>
+#include "esp_err.h"
+#include "esp_pthread.h"
 
 #include "driver/gpio.h"
 #include "bi-inc/attr_container.h"
@@ -42,6 +38,7 @@
 #include <queue>
 #include <string>
 #include <iomanip>
+#include <chrono>
 
 //WebAssembley App
 #include "nmea_attack.h" 
@@ -51,9 +48,19 @@
 #define PTHREAD_STACK_SIZE              4096
 #define MAX_DATA_LENGTH_BTYES           223
 #define BUFFER_SIZE                     (10 + 223*2) //10 bytes for id, 223*2 bytes for data
+#define MY_ESP_LOG_LEVEL                ESP_LOG_INFO // the log level for this file
+
+#define STATS_TASK_PRIO     tskIDLE_PRIORITY //3
+#define STATS_TICKS         pdMS_TO_TICKS(1000)
+#define ARRAY_SIZE_OFFSET   5   //Increase this if print_real_time_stats returns ESP_ERR_INVALID_SIZE
+#define TX_QUEUE_SIZE       100
+#define RX_QUEUE_SIZE       100
 
 // Tag for ESP logging
-static const char* TAG = "main.cpp";
+static const char* TAG_TWAI_TX = "TWAI_SEND";
+static const char* TAG_TWAI_RX = "TWAI_RECEIVE";
+static const char* TAG_WASM = "WASM";
+static const char* TAG_STATUS = "STATUS";
 
 /**
  * @brief Creates a NMEA2000 Object
@@ -63,29 +70,37 @@ static const char* TAG = "main.cpp";
 tNMEA2000_esp32c6 NMEA2000(GPIO_NUM_4, GPIO_NUM_5);
 
 // Task Handles
-static TaskHandle_t N2K_task_handle = NULL;
+static TaskHandle_t N2K_send_task_handle = NULL;
 static TaskHandle_t N2K_receive_task_handle = NULL;
+static TaskHandle_t N2K_stats_task_handle = NULL;
+
+QueueHandle_t controller0_tx_queue; //!< Queue that stores messages to be sent out on controller 0
+QueueHandle_t rx_queue; //!< Queue that stores all messages received on all controllers
 
 static unsigned long N2kMsgSentCount=0;
 static unsigned long N2kMsgFailCount=0;
+
 
 //----------------------------------------------------------------------------------------------------------------------------
 // Forward Declarations
 //----------------------------------------------------------------------------------------------------------------------------
 void HandleNMEA2000Msg(const tN2kMsg &N2kMsg);
 std::string nmea_to_string(NMEA_msg& msg);
-void vectorToCharArray(const std::vector<uint8_t>& data_vec, unsigned char (&data_char_arr)[MAX_DATA_LENGTH_BTYES]);
-
+void uintArrToCharrArray(uint8_t (&data_uint8_arr)[MAX_DATA_LENGTH_BTYES], unsigned char (&data_char_arr)[MAX_DATA_LENGTH_BTYES]);
 //----------------------------------------------------------------------------------------------------------------------------
 // Variables
 //-----------------------------------------------------------------------------------------------------------------------------
 char * wasm_buffer = NULL;  //!< buffer allocated for wasm app, used to hold received messages so app can access them
-std::queue<NMEA_msg> received_msgs_q; //!< Queue that stores all messages received on all controllers
-std::queue<NMEA_msg> ctrl0_q; //!< Queue that stores messages to be sent out on controller 0
-bool wasm_app_delay = true;
-int read_msg_count = 0;
-int send_msg_count = 0;
+int read_msg_count = 0; //!< Used to track messages read
+int send_msg_count = 0; //!< Used to track messages sent
+uint32_t alerts_to_enable = TWAI_ALERT_RX_DATA | TWAI_ALERT_TX_FAILED | TWAI_ALERT_RX_QUEUE_FULL; //!< Sets which alerts to enable for TWAI controller
 
+// Task Counters - temporary, for debugging
+int rx_task_count = 0;
+int tx_task_count = 0;
+int wasm_pthread_count = 0;
+int stats_task_count = 0;
+double wasm_main_duration;
 //-------------------------------------------------------------------------------------------------------------------------------
 // Native Functions to Export to WASM App
 //-----------------------------------------------------------------------------------------------------------------------------
@@ -127,45 +142,6 @@ void PrintInt32(wasm_exec_env_t exec_env,int32_t number,int32_t hex){
     return;
 }
 
-void AddAppDelay(wasm_exec_env_t exec_env){
-    wasm_app_delay = true;
-    ESP_LOGI(TAG, "WASM Delay on");
-}
-
-void RemoveAppDelay(wasm_exec_env_t exec_env){
-    wasm_app_delay = false;
-    ESP_LOGI(TAG, "WASM Delay off");
-}
-
-
-/****************************************************************************
- * \brief puts a message in the wasm buffer. 
- * 
- * This function is exported to the WASM app to be called from app to receive a message. 
- * Converts a NMEA_msg object into a string which is placed in the buffer.
- * @param exec_env
- * @todo maybe don't delete the message right away, hould only delete if it was sent sucessfully. 
- * \return 1 if message converted successfully, 0 if not.
-*/
-int32_t GetMsg(wasm_exec_env_t exec_env){
-  if (received_msgs_q.empty()){
-    ESP_LOGI(TAG, "No messages available to send to app\n");
-    return 0;
-  }
-  NMEA_msg msg = received_msgs_q.front();
-  printf("about to add msg with pgn %u \n", msg.PGN);
-  received_msgs_q.pop();//TODO
-  std::string str_msg = nmea_to_string(msg);
-        printf(" string form of message: ");
-  printf(str_msg.c_str());
-  printf("\n");
-  strncpy(wasm_buffer, str_msg.c_str(), str_msg.size());
-  printf("wasm_buffer has values: %c %c %c %c %c %c %c %c %c \n",*wasm_buffer, *(wasm_buffer+1), *(wasm_buffer + 2), *(wasm_buffer+3), *(wasm_buffer+4), *(wasm_buffer+5), *(wasm_buffer+6), *(wasm_buffer+7), *(wasm_buffer+8));
-  
-  ESP_LOGI(TAG, "Added message to wasm app wasm_buffer");
-  return 1;
-}
-
 /****************************************************************************
  * \brief Puts a message in a controller send queue
  * 
@@ -183,25 +159,27 @@ int32_t GetMsg(wasm_exec_env_t exec_env){
  * \return 1 if message converted successfully, 0 if not.
 */
 int32_t SendMsg(wasm_exec_env_t exec_env, int32_t controller_number, int32_t priority, int32_t PGN, int32_t source, uint8_t* data, int32_t data_length_bytes ){
-    ESP_LOGI(TAG, "SendMsg called \n");
+    ESP_LOGD(TAG_WASM, "SendMsg called \n");
     NMEA_msg msg;
     msg.controller_number = controller_number;
     msg.priority = priority;
     msg.PGN = PGN;
     msg.source = source;
     msg.data_length_bytes = data_length_bytes;
-    msg.data = std::vector<uint8_t>(data, data + data_length_bytes);
 
-
+    // Copy the data bytes
     for (size_t i = 0; i < data_length_bytes; ++i) {
         uint8_t value = static_cast<uint8_t>(data[i]);
-        msg.data.push_back(value);
+        msg.data[i] = value;
     }
 
+    
     if (controller_number == 0){
-        ESP_LOGI(TAG,"Added a msg to ctrl0_q with PGN %u \n", msg.PGN);
-        ctrl0_q.push(msg);
-        return 1;
+        // Add to controller 0 queue
+        ESP_LOGD(TAG_WASM,"Added a msg to ctrl0_q with PGN %u \n", msg.PGN);
+        if (xQueueSendToBack(controller0_tx_queue, &msg, pdMS_TO_TICKS(10))){
+            return 1;
+        }
     }
 
     return 0;
@@ -233,35 +211,29 @@ std::string nmea_to_string(NMEA_msg& msg){
     return s;
     
 }
+
 /**
- * @brief Fills a char array with values from a vector.
- * @todo add in error checking if data > 223
- * @param[in] data_vec
+ * @brief Fills a char array with values from a uint8_t array
+ * 
+ * @param[in] data_uint8_arr
  * @param[out] data_char_arr 
  * 
 */
-void vectorToCharArray(const std::vector<uint8_t>& data_vec, unsigned char (&data_char_arr)[MAX_DATA_LENGTH_BTYES]) {
-    size_t len = data_vec.size();
-    for (size_t i = 0; i < len; ++i) {
-        data_char_arr[i] = static_cast<unsigned char>(data_vec[i]);
+void uint8ArrayToCharrArray(uint8_t (&data_uint8_arr)[MAX_DATA_LENGTH_BTYES], unsigned char (&data_char_arr)[MAX_DATA_LENGTH_BTYES]){
+    for (size_t i = 0; i < MAX_DATA_LENGTH_BTYES; ++i) {
+        data_char_arr[i] = static_cast<unsigned char>(data_uint8_arr[i]);
     }
 }
 
 //---------------------------------------------------------------------------------------------------------------------------------------------
 
 /**
- * \brief takes mesages out of controller queue and sends message out on that controller
+ * \brief Sends a message
  * @todo update time to take time from message
  * @todo update for multiple controllers
  * 
 */
-void SendN2kMsg() {
-  if (ctrl0_q.empty()){
-    ESP_LOGI(TAG, "No messages in send queue to send");
-    return;
-  }
-  NMEA_msg msg = ctrl0_q.front();
-  ctrl0_q.pop();
+bool SendN2kMsg(NMEA_msg msg) {
   tN2kMsg N2kMsg;
   N2kMsg.Priority = msg.priority;
   N2kMsg.PGN = msg.PGN;
@@ -269,19 +241,188 @@ void SendN2kMsg() {
   N2kMsg.Destination = 0xff; //not used
 
   N2kMsg.DataLen = msg.data_length_bytes;
-  vectorToCharArray(msg.data, N2kMsg.Data);
+
+  uint8ArrayToCharrArray(msg.data, N2kMsg.Data);
+
   N2kMsg.MsgTime = N2kMillis64();//TODO 
 
   if ( NMEA2000.SendMsg(N2kMsg) ) {
-    ESP_LOGI(TAG, "sent a message \n");
+    ESP_LOGD(TAG_TWAI_TX, "sent a message \n");
     N2kMsgSentCount++;
     send_msg_count++;
   } else {
-    ESP_LOGI(TAG, "failed to send a message \n");
+    ESP_LOGW(TAG_TWAI_TX, "failed to send a message \n");
     N2kMsgFailCount++;
   }
+  return true;
+}
 
-  ESP_LOGI(TAG, "Messages Read: %d, Messages Sent %d \n", read_msg_count, send_msg_count);
+/**
+ * @brief Prints runtime and percentage for tasks and pthreads
+ * 
+ * To use this function, you need to configure some settings in menuconfig. 
+ * 
+ * You must enable FreeRTOS to collect runtime stats under 
+ * Component Config -> FreeRTOS -> Kernel -> configGENERATE_RUN_TIME_STATS
+ * 
+ * You must also choose the clock source for run time stats configured under
+ * Component Config -> FreeRTOS -> Port -> Choose the clock source for runtime stats.
+ * The esp_timer should be selected by default. 
+ * This option will affect the time unit resolution in which the statistics
+ *  are measured with respect to.
+ * 
+ * 
+ * 
+ * @param[in] xTicksToWait
+ * 
+*/
+static esp_err_t print_real_time_stats(TickType_t xTicksToWait)
+{
+    TaskStatus_t *start_array = NULL, *end_array = NULL;
+    UBaseType_t start_array_size, end_array_size;
+    uint32_t start_run_time, end_run_time;
+    esp_err_t ret;
+
+    //Allocate array to store current task states
+    start_array_size = uxTaskGetNumberOfTasks() + ARRAY_SIZE_OFFSET;
+    start_array = reinterpret_cast<TaskStatus_t*>(std::malloc(sizeof(TaskStatus_t) * start_array_size));
+    if (start_array == NULL) {
+        ret = ESP_ERR_NO_MEM;
+        free(start_array);
+        free(end_array);
+        return ret;
+    }
+    //Get current task states
+    start_array_size = uxTaskGetSystemState(start_array, start_array_size, &start_run_time);
+    if (start_array_size == 0) {
+        ret = ESP_ERR_INVALID_SIZE;
+        free(start_array);
+        free(end_array);
+        return ret;
+    }
+
+    vTaskDelay(xTicksToWait);
+
+    //Allocate array to store tasks states post delay
+    end_array_size = uxTaskGetNumberOfTasks() + ARRAY_SIZE_OFFSET;
+    end_array = reinterpret_cast<TaskStatus_t*>(std::malloc(sizeof(TaskStatus_t) * end_array_size));
+    if (end_array == NULL) {
+        ret = ESP_ERR_NO_MEM;
+        free(start_array);
+        free(end_array);
+        return ret;
+    }
+    //Get post delay task states
+    end_array_size = uxTaskGetSystemState(end_array, end_array_size, &end_run_time);
+    if (end_array_size == 0) {
+        ret = ESP_ERR_INVALID_SIZE;
+        free(start_array);
+        free(end_array);
+        return ret;
+    }
+
+    //Calculate total_elapsed_time in units of run time stats clock period.
+    uint32_t total_elapsed_time = (end_run_time - start_run_time);
+    if (total_elapsed_time == 0) {
+        ret = ESP_ERR_INVALID_STATE;
+        free(start_array);
+        free(end_array);
+        return ret;
+    }
+
+    printf("| Task | Run Time | Percentage\n");
+    //Match each task in start_array to those in the end_array
+    for (int i = 0; i < start_array_size; i++) {
+        int k = -1;
+        for (int j = 0; j < end_array_size; j++) {
+            if (start_array[i].xHandle == end_array[j].xHandle) {
+                k = j;
+                //Mark that task have been matched by overwriting their handles
+                start_array[i].xHandle = NULL;
+                end_array[j].xHandle = NULL;
+                break;
+            }
+        }
+        //Check if matching task found
+        if (k >= 0) {
+            uint32_t task_elapsed_time = end_array[k].ulRunTimeCounter - start_array[i].ulRunTimeCounter;
+            uint32_t percentage_time = (task_elapsed_time * 100UL) / (total_elapsed_time * portNUM_PROCESSORS);
+            printf("| %s | %" PRIu32 " | %" PRIu32 "%%\n", start_array[i].pcTaskName, task_elapsed_time, percentage_time);
+        }
+    }
+
+    //Print unmatched tasks
+    for (int i = 0; i < start_array_size; i++) {
+        if (start_array[i].xHandle != NULL) {
+            printf("| %s | Deleted\n", start_array[i].pcTaskName);
+        }
+    }
+    for (int i = 0; i < end_array_size; i++) {
+        if (end_array[i].xHandle != NULL) {
+            printf("| %s | Created\n", end_array[i].pcTaskName);
+        }
+    }
+    ret = ESP_OK;
+    free(start_array);
+    free(end_array);
+    return ret;
+
+}
+
+
+/**
+ * @brief Retrieves twai status and alerts
+ * 
+ * Used to display information regarding queue's filling up, and how many messages have been sent/received.
+ * 
+ * @param[in] TAG
+*/
+void GetStatus(const char* TAG){
+    uint32_t alerts = 0;
+    NMEA2000.ReadAlerts(alerts, pdMS_TO_TICKS(1));
+    if (alerts & TWAI_ALERT_RX_QUEUE_FULL){
+        ESP_LOGW(TAG, "TWAI rx queue full");
+    } 
+    twai_status_info_t status;
+    NMEA2000.GetTwaiStatus(status);
+    ESP_LOGI(TAG, "Msgs queued for transmission: %" PRIu32 " Unread messages in rx queue: %" PRIu32, status.msgs_to_tx, status.msgs_to_rx);
+    ESP_LOGI(TAG, "Msgs lost due to RX FIFO overrun: %" PRIu32 "", status.rx_overrun_count);
+    ESP_LOGI(TAG, "Msgs lost due to full RX queue: %" PRIu32 "", status.rx_missed_count);
+    ESP_LOGI(TAG, "Messages Read: %d, Messages Sent %d", read_msg_count, send_msg_count);
+    UBaseType_t msgs_in_rx_q = uxQueueMessagesWaiting(rx_queue);
+    ESP_LOGI(TAG, "Received Messages queue size: %d \n", msgs_in_rx_q);
+    UBaseType_t msgs_in_q = uxQueueMessagesWaiting(controller0_tx_queue);
+    ESP_LOGI(TAG, "Controller 0 send queue size: %d \n", msgs_in_q);
+
+    // Task Counters
+    ESP_LOGI(TAG, "RX task count: %d", rx_task_count);
+    ESP_LOGI(TAG, "TX task count: %d", tx_task_count);
+    ESP_LOGI(TAG, "Wasm pthread count: %d", wasm_pthread_count);
+    ESP_LOGI(TAG, "Stats task count: %d", stats_task_count);
+
+    //Duration of the app_instance_main for the wasm pthread
+    ESP_LOGI(TAG, "Duration of wasm task (ms): %f",wasm_main_duration/1000000);
+}
+/**
+ * @brief Optional FreeRTOS task for printing status messages for debugging 
+ * 
+ * @param pvParameters
+ * 
+*/
+static void stats_task(void *arg)
+{
+    //Print real time stats periodically
+    while (1) {
+        printf("\n\nGetting real time stats over %" PRIu32 " ticks\n", STATS_TICKS);
+        if (print_real_time_stats(STATS_TICKS) == ESP_OK) {
+            printf("Real time stats obtained\n");
+        } else {
+            printf("Error getting real time stats\n");
+        }
+        GetStatus(TAG_STATUS);
+        stats_task_count++;
+        vTaskDelay(pdMS_TO_TICKS(1000));
+    }
 }
 
 /**
@@ -295,9 +436,24 @@ void SendN2kMsg() {
  * I was unable to trigger recieving a CAN frame from the twai rx interrupt, so CAN_read_frame() must be called explicitly here. 
 */
 void N2K_receive_task(void *pvParameters){
-    for (;;)
+    esp_log_level_set(TAG_TWAI_RX, MY_ESP_LOG_LEVEL);
+    NMEA2000.SetN2kCANMsgBufSize(8);
+    NMEA2000.SetN2kCANReceiveFrameBufSize(250);
+    NMEA2000.EnableForward(false);               
+
+    NMEA2000.SetMsgHandler(HandleNMEA2000Msg);
+    NMEA2000.SetMode(tNMEA2000::N2km_ListenAndSend);
+    
+    NMEA2000.Open();
+
+    NMEA2000.ConfigureAlerts(alerts_to_enable);
+
+    while(1)
     {
         NMEA2000.CAN_read_frame();
+        NMEA2000.ParseMessages(); // Calls message handle whenever a message is available
+        rx_task_count++;
+
     }
     vTaskDelete(NULL); // should never get here...
 }
@@ -305,39 +461,43 @@ void N2K_receive_task(void *pvParameters){
 /**
  * @brief FreeRTOS task for processing and sending messages from CAN controller with NMEA2000 library
  * 
+ * Initializes NMEA2000 Object, then sends messages in loop.
+ * 
  * @todo frame buffer should be 32 - see if this works
  * @param pvParameters
 */
-void N2K_task(void *pvParameters)
+void N2K_send_task(void *pvParameters)
 {   
-    ESP_LOGI(TAG, "Starting N2k_task");
-    NMEA2000.SetN2kCANMsgBufSize(8);
-    NMEA2000.SetN2kCANReceiveFrameBufSize(250);
-    NMEA2000.EnableForward(false);               
-
-    NMEA2000.SetMsgHandler(HandleNMEA2000Msg);
-    NMEA2000.SetMode(tNMEA2000::N2km_ListenAndSend);
-
-    NMEA2000.Open();
-
+    esp_log_level_set(TAG_TWAI_TX, MY_ESP_LOG_LEVEL);
+    ESP_LOGI(TAG_TWAI_TX, "Starting N2k_task");
+    NMEA_msg msg;
     for (;;)
     {
-        // this runs everytime the task runs:
-      SendN2kMsg();
-      NMEA2000.ParseMessages();    
+        if( xQueueReceive( controller0_tx_queue, &msg, (100 / portTICK_PERIOD_MS) ))
+        {
+            SendN2kMsg(msg);
+        }
+        ESP_LOGD(TAG_TWAI_TX, "Send task called");
+
+        tx_task_count++;        
     }
     vTaskDelete(NULL); // should never get here...
 }
 
 
 /**
- * \brief Creates a NMEA_msg object and adds it to the received messages queue
+ * \brief Creates a NMEA_msg object and adds it to.data the received messages queue
  * 
  * @todo handle out of range data
  * \param N2kMsg Reference to the N2KMs being handled
  * \return void
  */
 void HandleNMEA2000Msg(const tN2kMsg &N2kMsg) {
+  if (N2kMsg.Source == 14){
+    ESP_LOGD(TAG_TWAI_RX, "source is 14");
+    return;
+  }
+  ESP_LOGD(TAG_TWAI_RX, "Message Handler called");
   NMEA_msg msg;
   msg.controller_number = 0;
   msg.priority = N2kMsg.Priority;
@@ -348,18 +508,24 @@ void HandleNMEA2000Msg(const tN2kMsg &N2kMsg) {
   // Perform the conversion with range checking
   for (size_t i = 0; i < size; i++) {
       if (N2kMsg.Data[i] <= static_cast<unsigned char>(CHAR_MAX)) {
-          msg.data.push_back(static_cast<signed char>(N2kMsg.Data[i]));
+          msg.data[i] = static_cast<signed char>(N2kMsg.Data[i]);
       } else {
           // Handle out-of-range value
           //msg.data[i] = /* Your desired behavior for out-of-range values */;
-          ESP_LOGE(TAG, "data out of range for signed array");
+          ESP_LOGE("Message Handle", "data out of range for signed array");
       }
   }
 
-  received_msgs_q.push(msg);
+  if(xQueueSendToBack(rx_queue, &msg, pdMS_TO_TICKS(10)) == 0){
+    ESP_LOGW(TAG_TWAI_RX, "Could not add received message to RX queue");    
+  }
+  else{
+    ESP_LOGD(TAG_TWAI_RX, " added msg to received queue");
+  }
   read_msg_count++;
-  ESP_LOGI(TAG, "added msg to received queue\n");
+  
 }
+
 
 
 /**
@@ -373,7 +539,7 @@ static void * app_instance_main(wasm_module_inst_t module_inst)
 
     wasm_application_execute_main(module_inst, 0, NULL);
     if ((exception = wasm_runtime_get_exception(module_inst)))
-        printf("%s\n", exception);
+        ESP_LOGW(TAG_WASM,"%s\n", exception);
     return NULL;
 }
 
@@ -389,6 +555,7 @@ static void * app_instance_main(wasm_module_inst_t module_inst)
 */
 void * iwasm_main(void *arg)
 {
+    esp_log_level_set(TAG_WASM, MY_ESP_LOG_LEVEL);
     (void)arg; /* unused */
     /* setup variables for instantiating and running the wasm module */
     uint8_t *wasm_file_buf = NULL;
@@ -421,28 +588,10 @@ void * iwasm_main(void *arg)
             NULL      
         },
         {
-            "AddAppDelay",
-            reinterpret_cast<void*>(AddAppDelay), 
-            "()",
-            NULL
-        },
-        {
-            "RemoveAppDelay",
-            reinterpret_cast<void*>(RemoveAppDelay), 
-            "()",
-            NULL
-        },
-        {
             "SendMsg",
             reinterpret_cast<void*>(SendMsg),   
             "(iiii*~)i",
             NULL    
-        },
-        {
-            "GetMsg", 
-            reinterpret_cast<void*>(GetMsg),   
-            "()i", 
-            NULL  
         }
     };
 #if WASM_ENABLE_GLOBAL_HEAP_POOL == 0
@@ -460,13 +609,13 @@ void * iwasm_main(void *arg)
     init_args.native_symbols = native_symbols;
 
 
-    ESP_LOGI(TAG, "Initialize WASM runtime");
+    ESP_LOGI(TAG_WASM, "Initialize WASM runtime");
     /* initialize runtime environment */
     if (!wasm_runtime_full_init(&init_args)) {
-        ESP_LOGE(TAG, "Init runtime failed.");
+        ESP_LOGE(TAG_WASM, "Init runtime failed.");
         return NULL;
     }
-    ESP_LOGI(TAG, "Run wamr with interpreter");
+    ESP_LOGI(TAG_WASM, "Run wamr with interpreter");
 
     wasm_file_buf = (uint8_t *)nmea_attack_wasm;
     wasm_file_buf_size = sizeof(nmea_attack_wasm);
@@ -474,73 +623,82 @@ void * iwasm_main(void *arg)
     /* load WASM module */
     if (!(wasm_module = wasm_runtime_load(wasm_file_buf, wasm_file_buf_size,
                                           error_buf, sizeof(error_buf)))) {
-        ESP_LOGE(TAG, "Error in wasm_runtime_load: %s", error_buf);
+        ESP_LOGE(TAG_WASM, "Error in wasm_runtime_load: %s", error_buf);
         goto fail;
     }
 
-    ESP_LOGI(TAG, "Instantiate WASM runtime");
+    ESP_LOGI(TAG_WASM, "Instantiate WASM runtime");
     if (!(wasm_module_inst =
               wasm_runtime_instantiate(wasm_module, NATIVE_STACK_SIZE, // stack size
                                        NATIVE_HEAP_SIZE,              // heap size
                                        error_buf, sizeof(error_buf)))) {
-        ESP_LOGE(TAG, "Error while instantiating: %s", error_buf);
+        ESP_LOGE(TAG_WASM, "Error while instantiating: %s", error_buf);
         goto fail;
     }
 
     
     exec_env = wasm_runtime_create_exec_env(wasm_module_inst, NATIVE_STACK_SIZE);//stack size
     if (!exec_env) {
-        printf("Create wasm execution environment failed.\n");
+        ESP_LOGW(TAG_WASM,"Create wasm execution environment failed.\n");
         goto fail;
     }
 
-    ESP_LOGI(TAG, "Malloc buffer in wasm function");
+    ESP_LOGI(TAG_WASM, "Malloc buffer in wasm function");
     buffer_for_wasm = wasm_runtime_module_malloc(wasm_module_inst, 100, (void **)&wasm_buffer);
     if (buffer_for_wasm == 0) {
-        ESP_LOGI(TAG, "Malloc failed");
+        ESP_LOGI(TAG_WASM, "Malloc failed");
         goto fail;
     }
     uint32 argv[2];
     argv[0] = buffer_for_wasm;     /* pass the buffer address for WASM space */
     argv[1] = BUFFER_SIZE;                 /* the size of buffer */
-    ESP_LOGI(TAG, "Call wasm function");
+    ESP_LOGI(TAG_WASM, "Call wasm function");
     /* it is runtime embedder's responsibility to release the memory,
        unless the WASM app will free the passed pointer in its code */
     
     if (!(func = wasm_runtime_lookup_function(wasm_module_inst, "link_msg_buffer",
                                                NULL))) {
-        printf(
+        ESP_LOGW(TAG_WASM,
             "The wasm function link_msg_buffer wasm function is not found.\n");
         goto fail;
     }
 
     if (wasm_runtime_call_wasm(exec_env, func, 2, argv)) {
-        printf("Native finished calling wasm function: link_msg_buffer, "
+        ESP_LOGI(TAG_WASM,"Native finished calling wasm function: link_msg_buffer, "
                "returned a formatted string: %s\n",
                wasm_buffer);
     }
     else {
-        printf("call wasm function link_msg_buffer failed. error: %s\n",
+        ESP_LOGW(TAG_WASM,"call wasm function link_msg_buffer failed. error: %s\n",
                wasm_runtime_get_exception(wasm_module_inst));
         goto fail;
     }
 
     while (true){
-        ESP_LOGI(TAG, "run main() of the application");
-        ret = app_instance_main(wasm_module_inst);
-        assert(!ret);
-        vTaskDelay(20 / portTICK_PERIOD_MS);
-        //if (wasm_app_delay){
-        //    vTaskDelay(100 / portTICK_PERIOD_MS);
-        //}       
+        ESP_LOGD(TAG_WASM, "run main() of the application");
+        auto start = std::chrono::high_resolution_clock::now(); 
+        NMEA_msg msg;
+        if (xQueueReceive(rx_queue, &msg, (100 / portTICK_PERIOD_MS) == 1)){
+            std::string str_msg = nmea_to_string(msg);
+            strncpy(wasm_buffer, str_msg.c_str(), str_msg.size());
+            ret = app_instance_main(wasm_module_inst);   
+            assert(!ret);
+        } else{
+            vTaskDelay(10 / portTICK_PERIOD_MS); // I don't understand why this is nessesary
+        }
 
+        auto end = std::chrono::high_resolution_clock::now();
+        auto ns_duration = duration_cast<std::chrono::nanoseconds>(end-start);
+        wasm_main_duration = static_cast<double>(ns_duration.count());
+        
+        wasm_pthread_count++;
     }
 
 
     wasm_runtime_module_free(wasm_module_inst, buffer_for_wasm);
     
     /* destroy the module instance */
-    ESP_LOGI(TAG, "Deinstantiate WASM runtime");
+    ESP_LOGI(TAG_WASM, "Deinstantiate WASM runtime");
     wasm_runtime_deinstantiate(wasm_module_inst);
 
 fail:
@@ -553,14 +711,14 @@ fail:
     }
     if (wasm_module){
         /* unload the module */
-        ESP_LOGI(TAG, "Unload WASM module");
+        ESP_LOGI(TAG_WASM, "Unload WASM module");
         wasm_runtime_unload(wasm_module);
     }
     if (wasm_buffer)
         BH_FREE(wasm_buffer);
 
     /* destroy runtime environment */
-    ESP_LOGI(TAG, "Destroy WASM runtime");
+    ESP_LOGI(TAG_WASM, "Destroy WASM runtime");
     wasm_runtime_destroy();
     return NULL;
 }
@@ -572,64 +730,104 @@ fail:
 */
 extern "C" int app_main(void)
 {
-    /* Create task */
+    controller0_tx_queue = xQueueCreate(TX_QUEUE_SIZE, sizeof(NMEA_msg));
+    rx_queue = xQueueCreate(RX_QUEUE_SIZE, sizeof(NMEA_msg));
+
+    /* Status Task*/
     esp_err_t result = ESP_OK;
-    ESP_LOGV(TAG, "create task");
-    xTaskCreate(
-        &N2K_task,            // Pointer to the task entry function.
-        "Sending_task",           // A descriptive name for the task for debugging.
-        3072,                 // size of the task stack in bytes.
+    printf( "create task");
+    xTaskCreatePinnedToCore(
+        &stats_task,            // Pointer to the task entry function.
+        "stats_task",           // A descriptive name for the task for debugging.
+        4096,                 // size of the task stack in bytes.
         NULL,                 // Optional pointer to pvParameters
-        tskIDLE_PRIORITY, // priority at which the task should run
-        &N2K_task_handle      // Optional pass back task handle
+        STATS_TASK_PRIO, // priority at which the task should run
+        &N2K_stats_task_handle,      // Optional pass back task handle
+        1
     );
-    if (N2K_task_handle == NULL)
+    if (N2K_stats_task_handle == NULL)
     {
-        ESP_LOGE(TAG, "Unable to create task.");
+        printf("Unable to create task.");
         result = ESP_ERR_NO_MEM;
         goto err_out;
     }
 
-    /* Create task */
-    ESP_LOGV(TAG, "create task");
-    xTaskCreate(
-        &N2K_receive_task,            // Pointer to the task entry function.
-        "Reading_task",           // A descriptive name for the task for debugging.
+    /* Sending task */
+    ESP_LOGV(TAG_WASM, "create task");
+    xTaskCreatePinnedToCore(
+        &N2K_send_task,            // Pointer to the task entry function.
+        "Send_task",           // A descriptive name for the task for debugging.
         3072,                 // size of the task stack in bytes.
         NULL,                 // Optional pointer to pvParameters
-        tskIDLE_PRIORITY, // priority at which the task should run
-        &N2K_receive_task_handle      // Optional pass back task handle
+        tskIDLE_PRIORITY+1, // priority at which the task should run
+        &N2K_send_task_handle,      // Optional pass back task handle
+        1
+    );
+    if (N2K_send_task_handle == NULL)
+    {
+        ESP_LOGE(TAG_TWAI_TX, "Unable to create task.");
+        result = ESP_ERR_NO_MEM;
+        goto err_out;
+    }
+
+    /* Receiving task */
+    ESP_LOGV(TAG_TWAI_RX, "create task");
+    xTaskCreatePinnedToCore(
+        &N2K_receive_task,            // Pointer to the task entry function.
+        "Receive_task",           // A descriptive name for the task for debugging.
+        3072,                 // size of the task stack in bytes.
+        NULL,                 // Optional pointer to pvParameters
+        tskIDLE_PRIORITY+3, // priority at which the task should run
+        &N2K_receive_task_handle,      // Optional pass back task handle
+        0
     );
     if (N2K_receive_task_handle == NULL)
     {
-        ESP_LOGE(TAG, "Unable to create task.");
+        ESP_LOGE(TAG_TWAI_RX, "Unable to create task.");
         result = ESP_ERR_NO_MEM;
         goto err_out;
+
     }
 
-    /* Create pthread */
+    /* Wasm pthread */
     pthread_t t;
     int res;
+    esp_pthread_cfg_t esp_pthread_cfg;
+
+
 
     pthread_attr_t tattr;
     pthread_attr_init(&tattr);
     pthread_attr_setdetachstate(&tattr, PTHREAD_CREATE_JOINABLE);
     pthread_attr_setstacksize(&tattr, PTHREAD_STACK_SIZE);
 
+    // Use the ESP-IDF API to change the default thread attributes
+    esp_pthread_cfg = esp_pthread_get_default_config();
+    ESP_LOGI(TAG_WASM, "Pthread priority: %d", esp_pthread_cfg.prio);
+    ESP_LOGI(TAG_WASM, "Pthread core: %d", esp_pthread_cfg.pin_to_core);
+    esp_pthread_cfg.prio = tskIDLE_PRIORITY+1; //change priority 
+    esp_pthread_cfg.pin_to_core = 1; // pin to core 1
+    ESP_ERROR_CHECK( esp_pthread_set_cfg(&esp_pthread_cfg) );
+
     res = pthread_create(&t, &tattr, iwasm_main, (void *)NULL);
     assert(res == 0);
 
+    esp_pthread_get_cfg(&esp_pthread_cfg);
+    ESP_LOGI(TAG_WASM, "Pthread priority: %d", esp_pthread_cfg.prio);
     res = pthread_join(t, NULL);
     assert(res == 0);
-
 
 err_out:
     if (result != ESP_OK)
     {
-        if (N2K_task_handle != NULL)
+        if (N2K_send_task_handle != NULL || N2K_receive_task_handle != NULL || N2K_stats_task_handle != NULL)
         {
-            vTaskDelete(N2K_task_handle);
-            N2K_task_handle = NULL;
+            vTaskDelete(N2K_send_task_handle);
+            vTaskDelete(N2K_receive_task_handle);
+            vTaskDelete(N2K_stats_task_handle);
+            N2K_send_task_handle = NULL;
+            N2K_receive_task_handle = NULL;
+            N2K_stats_task_handle = NULL;
         }
     }
 

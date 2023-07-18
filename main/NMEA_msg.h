@@ -10,7 +10,7 @@
  * * source 
  * * priority
  * * data_length_bytes 
- * * data vector
+ * * data array
  * 
 */
 #ifndef NMEA_MSG_H
@@ -26,7 +26,7 @@ struct NMEA_msg {
     uint8_t source;
     uint8_t priority : 3;
     int data_length_bytes;
-    std::vector<uint8_t> data;
+    uint8_t data[MaxDataLen];
 };
 
 #endif //NMEA_MSG_Hcode 
