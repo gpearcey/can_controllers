@@ -688,7 +688,7 @@ void * iwasm_main(void *arg)
         if (xQueueReceive(rx_queue, &msg, (100 / portTICK_PERIOD_MS) == 1)){
             std::string str_msg = nmea_to_string(msg);
             strncpy(wasm_buffer, str_msg.c_str(), str_msg.size());
-            ret = app_instance_main(wasm_module_inst);   
+            ret = app_instance_main(wasm_module_inst);  //Call the main function 
             assert(!ret);
         } else{
             vTaskDelay(10 / portTICK_PERIOD_MS); // I don't understand why this is nessesary
