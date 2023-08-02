@@ -1,4 +1,4 @@
-idf_component_register(SRCS "main.cpp" 
+idf_component_register(SRCS "mcp-test.cpp"
                        INCLUDE_DIRS "."
-                       PRIV_REQUIRES driver freertos NMEA2000 NMEA2000_esp32-c6 NMEA2000_esp32-c6_MCP wamr)
+                       PRIV_REQUIRES driver freertos NMEA2000 mcp2515-esp32-idf wamr)
 

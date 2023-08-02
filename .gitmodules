@@ -10,3 +10,6 @@
 [submodule "external/NMEA2000_esp32-c6_MCP"]
 	path = external/NMEA2000_esp32-c6_MCP
 	url = git@github.com:gpearcey/NMEA2000_esp32-c6_MCP.git
+[submodule "external/mcp2515-esp32-idf"]
+	path = external/mcp2515-esp32-idf
+	url = git@github.com:gpearcey/mcp2515-esp32-idf.git
