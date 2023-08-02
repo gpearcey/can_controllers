@@ -7,3 +7,6 @@
 [submodule "external/NMEA2000_esp32-c6"]
 	path = external/NMEA2000_esp32-c6
 	url = git@github.com:gpearcey/NMEA2000_esp32-c6.git
+[submodule "external/NMEA2000_esp32-c6_MCP"]
+	path = external/NMEA2000_esp32-c6_MCP
+	url = git@github.com:gpearcey/NMEA2000_esp32-c6_MCP.git
