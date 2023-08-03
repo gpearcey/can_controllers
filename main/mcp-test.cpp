@@ -82,27 +82,24 @@ bool SPI_Init(void)
 	printf("Hello from SPI_Init!\n\r");
 	esp_err_t ret;
 	//Configuration for the SPI bus
+	//spi_device_handle_t spi;
 	spi_bus_config_t bus_cfg={};
     bus_cfg.miso_io_num=PIN_NUM_MISO;
     bus_cfg.mosi_io_num=PIN_NUM_MOSI;	
 	bus_cfg.sclk_io_num=PIN_NUM_CLK;
-    bus_cfg.data4_io_num=-1;
-    bus_cfg.data5_io_num=-1;
-    bus_cfg.data6_io_num=-1;
-    bus_cfg.data7_io_num=-1;
-    bus_cfg.max_transfer_sz = 0; // no limit
-    //bus_cfg.isr_cpu_id=0,
-    bus_cfg.flags = 0;
-    bus_cfg.intr_flags = 0;
+    bus_cfg.quadwp_io_num=-1;
+    bus_cfg.quadhd_io_num=-1;
+    bus_cfg.max_transfer_sz=16*320*2+8;
 //
 	//};
 
 	// Define MCP2515 SPI device configuration
 	spi_device_interface_config_t dev_cfg = {};
 	dev_cfg.mode = 0; // (0,0)
-	dev_cfg.clock_speed_hz = 40000000; // 4 mhz
+	dev_cfg.clock_speed_hz=10*1000*1000; 
 	dev_cfg.spics_io_num = PIN_NUM_CS;
 	dev_cfg.queue_size = 1024;
+	dev_cfg.pre_cb=NULL;
 	
 
 	// Initialize SPI bus
@@ -145,30 +142,30 @@ extern "C" int app_main(void)
 		if(MCP2515_sendMessageAfterCtrlCheck(can_frame_rx[0]) != ERROR_OK){
 			ESP_LOGE(TAG_MCP, "Couldn't send message.");
 		}
-        if (MCP2515_readMessage(RXB0,&frame) == ERROR_OK) {
-	        // frame contains received message
-            ESP_LOGI(TAG_MCP, "Received msg RXB0");
-
-            ESP_LOGD(TAG_MCP,"CAN ID: %lu", frame.can_id);
-            ESP_LOGD(TAG_MCP,"CAN dlc: %u", frame.can_dlc);
-            ESP_LOGD(TAG_MCP,"CAN data[1]: %u", frame.data[1]);
-        }
-		else{
-            ESP_LOGI(TAG_MCP, "Did not receive msg 0");
-        }
-        if (MCP2515_readMessage(RXB1,&frame) == ERROR_OK) {
-	        // frame contains received message
-            ESP_LOGI(TAG_MCP, "Received msg RXB1");
-
-            ESP_LOGD(TAG_MCP,"CAN ID: %lu", frame.can_id);
-            ESP_LOGD(TAG_MCP,"CAN dlc: %u", frame.can_dlc);
-            ESP_LOGD(TAG_MCP,"CAN data[1]: %u", frame.data[1]);
-        }
-        else{
-            ESP_LOGI(TAG_MCP, "Did not receive msg 1");
-        }
+        //if (MCP2515_readMessage(RXB0,&frame) == ERROR_OK) {
+	    //    // frame contains received message
+        //    ESP_LOGI(TAG_MCP, "Received msg RXB0");
+//
+        //    ESP_LOGD(TAG_MCP,"CAN ID: %lu", frame.can_id);
+        //    ESP_LOGD(TAG_MCP,"CAN dlc: %u", frame.can_dlc);
+        //    ESP_LOGD(TAG_MCP,"CAN data[1]: %u", frame.data[1]);
+        //}
+		//else{
+        //    ESP_LOGI(TAG_MCP, "Did not receive msg 0");
+        //}
+        //if (MCP2515_readMessage(RXB1,&frame) == ERROR_OK) {
+	    //    // frame contains received message
+        //    ESP_LOGI(TAG_MCP, "Received msg RXB1");
+//
+        //    ESP_LOGD(TAG_MCP,"CAN ID: %lu", frame.can_id);
+        //    ESP_LOGD(TAG_MCP,"CAN dlc: %u", frame.can_dlc);
+        //    ESP_LOGD(TAG_MCP,"CAN data[1]: %u", frame.data[1]);
+        //}
+        //else{
+        //    ESP_LOGI(TAG_MCP, "Did not receive msg 1");
+        //}
 		vTaskDelay(10); // check freertos tickrate for make this delay 1 second
-	}
+	}//
 
     return 0;
 };
