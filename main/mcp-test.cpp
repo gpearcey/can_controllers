@@ -39,22 +39,7 @@
 #include <iomanip>
 #include <chrono>	
 
-
-//WebAssembley App
-#include "nmea_attack.h" 
-
-#define NATIVE_STACK_SIZE               (32*1024)
-#define NATIVE_HEAP_SIZE                (32*1024)
-#define PTHREAD_STACK_SIZE              4096
-#define MAX_DATA_LENGTH_BTYES           223
-#define BUFFER_SIZE                     (10 + 223*2) //10 bytes for id, 223*2 bytes for data
 #define MY_ESP_LOG_LEVEL                ESP_LOG_DEBUG // the log level for this file
-
-#define STATS_TASK_PRIO     tskIDLE_PRIORITY //3
-#define STATS_TICKS         pdMS_TO_TICKS(1000)
-#define ARRAY_SIZE_OFFSET   5   //Increase this if print_real_time_stats returns ESP_ERR_INVALID_SIZE
-#define TX_QUEUE_SIZE       100
-#define RX_QUEUE_SIZE       100
 
 #define PIN_NUM_MISO 2
 #define PIN_NUM_MOSI 7
@@ -62,9 +47,6 @@
 #define PIN_NUM_CS   16
 #define PIN_NUM_INTERRUPT 4
 
-//To speed up transfers, every SPI transfer sends a bunch of lines. This define specifies how many. More means more memory use,
-//but less overhead for setting up / finishing transfers. Make sure 240 is dividable by this.
-#define PARALLEL_LINES 16
 
 // Tag for ESP logging
 static const char* TAG_MCP = "MCP";
@@ -90,8 +72,7 @@ bool SPI_Init(void)
     bus_cfg.quadwp_io_num=-1;
     bus_cfg.quadhd_io_num=-1;
     bus_cfg.max_transfer_sz=16*320*2+8;
-//
-	//};
+
 
 	// Define MCP2515 SPI device configuration
 	spi_device_interface_config_t dev_cfg = {};
@@ -164,8 +145,8 @@ extern "C" int app_main(void)
         else{
             ESP_LOGI(TAG_MCP, "Did not receive msg 1");
         }
-		vTaskDelay(100); // check freertos tickrate for make this delay 1 second
-	}//
+		vTaskDelay(100); 
+	}
 
     return 0;
 };
