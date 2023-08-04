@@ -16,3 +16,6 @@
 [submodule "external/Adafruit_MCP2515"]
 	path = external/Adafruit_MCP2515
 	url = git@github.com:adafruit/Adafruit_MCP2515.git
+[submodule "external/can_common"]
+	path = external/can_common
+	url = git@github.com:collin80/can_common.git
