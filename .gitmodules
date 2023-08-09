@@ -7,18 +7,6 @@
 [submodule "external/NMEA2000_esp32-c6"]
 	path = external/NMEA2000_esp32-c6
 	url = git@github.com:gpearcey/NMEA2000_esp32-c6.git
-[submodule "external/NMEA2000_esp32-c6_MCP"]
-	path = external/NMEA2000_esp32-c6_MCP
-	url = git@github.com:gpearcey/NMEA2000_esp32-c6_MCP.git
-[submodule "external/mcp2515-esp32-idf"]
-	path = external/mcp2515-esp32-idf
-	url = git@github.com:gpearcey/mcp2515-esp32-idf.git
-[submodule "external/Adafruit_MCP2515"]
-	path = external/Adafruit_MCP2515
-	url = git@github.com:adafruit/Adafruit_MCP2515.git
-[submodule "external/can_common"]
-	path = external/can_common
-	url = git@github.com:collin80/can_common.git
 [submodule "external/esp32-mcp2515"]
 	path = external/esp32-mcp2515
 	url = git@github.com:dedalqq/esp32-mcp2515.git

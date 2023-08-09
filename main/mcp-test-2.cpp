@@ -126,19 +126,20 @@ extern "C" int app_main(void)
 	
 	while(1){
 	mcp2515.sendMessage(MCP2515::TXB1, &frame);
-  	//if (mcp2515.readMessage(&frame) == MCP2515::ERROR_OK) {
-  	//        // frame contains received message
-  	//        printf("ID: %lx \n", frame.can_id);
-  	//        printf("DATA %x ", frame.data[0]);
-	//		printf("DATA %x ", frame.data[1]);
-	//		printf("DATA %x \n", frame.data[2]);
-	//		//printf("DATA %x ", frame.data[3]);
-	//		//printf("DATA %x ", frame.data[4]);
-	//		//printf("DATA %x ", frame.data[5]);
-	//		//printf("DATA %x ", frame.data[6]);
-	//		//printf("DATA %x \n", frame.data[7]);
-//
-  	//}	//if(MCP2515_sendMessageAfterCtrlCheck(can_frame_rx[0]) != ERROR_OK){
+	vTaskDelay(10); 
+  	if (mcp2515.readMessage(&frame) == MCP2515::ERROR_OK) {
+  	        // frame contains received message
+  	        printf("ID: %lx \n", frame.can_id);
+  	        printf("DATA %x ", frame.data[0]);
+			printf("DATA %x ", frame.data[1]);
+			printf("DATA %x \n", frame.data[2]);
+			//printf("DATA %x ", frame.data[3]);
+			//printf("DATA %x ", frame.data[4]);
+			//printf("DATA %x ", frame.data[5]);
+			//printf("DATA %x ", frame.data[6]);
+			//printf("DATA %x \n", frame.data[7]);
+
+  	}	//if(MCP2515_sendMessageAfterCtrlCheck(can_frame_rx[0]) != ERROR_OK){
 		//	ESP_LOGE(TAG_MCP, "Couldn't send message.");
 		//}
         //if (MCP2515_readMessage(RXB0,&frame) == ERROR_OK) {
