@@ -19,3 +19,6 @@
 [submodule "external/can_common"]
 	path = external/can_common
 	url = git@github.com:collin80/can_common.git
+[submodule "external/esp32-mcp2515"]
+	path = external/esp32-mcp2515
+	url = git@github.com:dedalqq/esp32-mcp2515.git

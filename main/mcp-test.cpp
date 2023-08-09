@@ -105,10 +105,10 @@ extern "C" int app_main(void)
 	MCP2515_init();
 	SPI_Init();
 	MCP2515_reset();
-	MCP2515_setBitrate(CAN_250KBPS, MCP_16MHZ);
+	MCP2515_setBitrate(CAN_250KBPS, MCP_8MHZ);
 	MCP2515_setNormalMode();
 
-	can_frame_rx[0]->can_id = (0x09F80108) | CAN_EFF_FLAG;
+	can_frame_rx[0]->can_id = (0x09F80107) | CAN_EFF_FLAG;
 	can_frame_rx[0]->can_dlc = 8;
 	can_frame_rx[0]->data[0] = 0x01;
 	can_frame_rx[0]->data[1] = 0x02;
@@ -123,29 +123,29 @@ extern "C" int app_main(void)
 		if(MCP2515_sendMessageAfterCtrlCheck(can_frame_rx[0]) != ERROR_OK){
 			ESP_LOGE(TAG_MCP, "Couldn't send message.");
 		}
-        if (MCP2515_readMessage(RXB0,&frame) == ERROR_OK) {
-	        // frame contains received message
-            ESP_LOGI(TAG_MCP, "Received msg RXB0");
-
-            ESP_LOGD(TAG_MCP,"CAN ID: %lu", frame.can_id);
-            ESP_LOGD(TAG_MCP,"CAN dlc: %u", frame.can_dlc);
-            ESP_LOGD(TAG_MCP,"CAN data[1]: %u", frame.data[1]);
-        }
-		else{
-            ESP_LOGI(TAG_MCP, "Did not receive msg 0");
-        }
-        if (MCP2515_readMessage(RXB1,&frame) == ERROR_OK) {
-	        // frame contains received message
-            ESP_LOGI(TAG_MCP, "Received msg RXB1");
-
-            ESP_LOGD(TAG_MCP,"CAN ID: %lu", frame.can_id);
-            ESP_LOGD(TAG_MCP,"CAN dlc: %u", frame.can_dlc);
-            ESP_LOGD(TAG_MCP,"CAN data[1]: %u", frame.data[1]);
-        }
-        else{
-            ESP_LOGI(TAG_MCP, "Did not receive msg 1");
-        }
-		vTaskDelay(100); 
+        //if (MCP2515_readMessage(RXB0,&frame) == ERROR_OK) {
+	    //    // frame contains received message
+        //    ESP_LOGI(TAG_MCP, "Received msg RXB0");
+//
+        //    ESP_LOGD(TAG_MCP,"CAN ID: %lu", frame.can_id);
+        //    ESP_LOGD(TAG_MCP,"CAN dlc: %u", frame.can_dlc);
+        //    ESP_LOGD(TAG_MCP,"CAN data[1]: %u", frame.data[1]);
+        //}
+		//else{
+        //    ESP_LOGI(TAG_MCP, "Did not receive msg 0");
+        //}
+        //if (MCP2515_readMessage(RXB1,&frame) == ERROR_OK) {
+	    //    // frame contains received message
+        //    ESP_LOGI(TAG_MCP, "Received msg RXB1");
+//
+        //    ESP_LOGD(TAG_MCP,"CAN ID: %lu", frame.can_id);
+        //    ESP_LOGD(TAG_MCP,"CAN dlc: %u", frame.can_dlc);
+        //    ESP_LOGD(TAG_MCP,"CAN data[1]: %u", frame.data[1]);
+        //}
+        //else{
+        //    ESP_LOGI(TAG_MCP, "Did not receive msg 1");
+        //}
+		vTaskDelay(10000); 
 	}
 
     return 0;
