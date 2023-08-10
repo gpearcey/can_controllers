@@ -26,6 +26,7 @@
 #include <N2kMessages.h>
 #include "esp_err.h"
 #include "esp_pthread.h"
+#include <NMEA2000_mcp.h>
 
 #include "driver/gpio.h"
 #include "bi-inc/attr_container.h"
@@ -67,10 +68,10 @@ static const char* TAG_STATUS = "STATUS";
  * 
  * NMEA2000(TX_PIN, RX_PIN)
 */
-tNMEA2000_esp32c6 NMEA2000(GPIO_NUM_4, GPIO_NUM_5);
+//tNMEA2000_esp32c6 NMEA2000(GPIO_NUM_4, GPIO_NUM_5);
 
-
-//tNMEA2000_mcp MCP1(16,MCP_8MHz,10,50);
+spi_device_handle_t spi;
+tNMEA2000_mcp NMEA2000(&spi,16,MCP_8MHZ,10,50);
 
 
 // Task Handles
@@ -384,53 +385,53 @@ static esp_err_t print_real_time_stats(TickType_t xTicksToWait)
  * 
  * @param[in] TAG
 */
-void GetStatus(const char* TAG){
-    uint32_t alerts = 0;
-    NMEA2000.ReadAlerts(alerts, pdMS_TO_TICKS(1));
-    if (alerts & TWAI_ALERT_RX_QUEUE_FULL){
-        ESP_LOGW(TAG, "TWAI rx queue full");
-    } 
-    twai_status_info_t status;
-    NMEA2000.GetTwaiStatus(status);
-    ESP_LOGI(TAG, "Msgs queued for transmission: %" PRIu32 " Unread messages in rx queue: %" PRIu32, status.msgs_to_tx, status.msgs_to_rx);
-    ESP_LOGI(TAG, "Msgs lost due to RX FIFO overrun: %" PRIu32 "", status.rx_overrun_count);
-    ESP_LOGI(TAG, "Msgs lost due to full RX queue: %" PRIu32 "", status.rx_missed_count);
-    ESP_LOGI(TAG, "Messages Read: %d, Messages Sent %d", read_msg_count, send_msg_count);
-    UBaseType_t msgs_in_rx_q = uxQueueMessagesWaiting(rx_queue);
-    ESP_LOGI(TAG, "Received Messages queue size: %d \n", msgs_in_rx_q);
-    UBaseType_t msgs_in_q = uxQueueMessagesWaiting(controller0_tx_queue);
-    ESP_LOGI(TAG, "Controller 0 send queue size: %d \n", msgs_in_q);
-
-    // Task Counters
-    ESP_LOGI(TAG, "RX task count: %d", rx_task_count);
-    ESP_LOGI(TAG, "TX task count: %d", tx_task_count);
-    ESP_LOGI(TAG, "Wasm pthread count: %d", wasm_pthread_count);
-    ESP_LOGI(TAG, "Stats task count: %d", stats_task_count);
-
-    //Duration of the app_instance_main for the wasm pthread
-    ESP_LOGI(TAG, "Duration of wasm task (ms): %f",wasm_main_duration/1000000);
-}
+//void GetStatus(const char* TAG){
+//    uint32_t alerts = 0;
+//    NMEA2000.ReadAlerts(alerts, pdMS_TO_TICKS(1));
+//    if (alerts & TWAI_ALERT_RX_QUEUE_FULL){
+//        ESP_LOGW(TAG, "TWAI rx queue full");
+//    } 
+//    twai_status_info_t status;
+//    NMEA2000.GetTwaiStatus(status);
+//    ESP_LOGI(TAG, "Msgs queued for transmission: %" PRIu32 " Unread messages in rx queue: %" PRIu32, status.msgs_to_tx, status.msgs_to_rx);
+//    ESP_LOGI(TAG, "Msgs lost due to RX FIFO overrun: %" PRIu32 "", status.rx_overrun_count);
+//    ESP_LOGI(TAG, "Msgs lost due to full RX queue: %" PRIu32 "", status.rx_missed_count);
+//    ESP_LOGI(TAG, "Messages Read: %d, Messages Sent %d", read_msg_count, send_msg_count);
+//    UBaseType_t msgs_in_rx_q = uxQueueMessagesWaiting(rx_queue);
+//    ESP_LOGI(TAG, "Received Messages queue size: %d \n", msgs_in_rx_q);
+//    UBaseType_t msgs_in_q = uxQueueMessagesWaiting(controller0_tx_queue);
+//    ESP_LOGI(TAG, "Controller 0 send queue size: %d \n", msgs_in_q);
+//
+//    // Task Counters
+//    ESP_LOGI(TAG, "RX task count: %d", rx_task_count);
+//    ESP_LOGI(TAG, "TX task count: %d", tx_task_count);
+//    ESP_LOGI(TAG, "Wasm pthread count: %d", wasm_pthread_count);
+//    ESP_LOGI(TAG, "Stats task count: %d", stats_task_count);
+//
+//    //Duration of the app_instance_main for the wasm pthread
+//    ESP_LOGI(TAG, "Duration of wasm task (ms): %f",wasm_main_duration/1000000);
+//}
 /**
  * @brief Optional FreeRTOS task for printing status messages for debugging 
  * 
  * @param pvParameters
  * 
 */
-static void stats_task(void *arg)
-{
-    //Print real time stats periodically
-    while (1) {
-        printf("\n\nGetting real time stats over %" PRIu32 " ticks\n", STATS_TICKS);
-        if (print_real_time_stats(STATS_TICKS) == ESP_OK) {
-            printf("Real time stats obtained\n");
-        } else {
-            printf("Error getting real time stats\n");
-        }
-        GetStatus(TAG_STATUS);
-        stats_task_count++;
-        vTaskDelay(pdMS_TO_TICKS(1000));
-    }
-}
+//static void stats_task(void *arg)
+//{
+//    //Print real time stats periodically
+//    while (1) {
+//        printf("\n\nGetting real time stats over %" PRIu32 " ticks\n", STATS_TICKS);
+//        if (print_real_time_stats(STATS_TICKS) == ESP_OK) {
+//            printf("Real time stats obtained\n");
+//        } else {
+//            printf("Error getting real time stats\n");
+//        }
+//        GetStatus(TAG_STATUS);
+//        stats_task_count++;
+//        vTaskDelay(pdMS_TO_TICKS(1000));
+//    }
+//}
 
 /**
  * @brief FreeRTOS task for receiving messages from CAN controller
@@ -453,12 +454,12 @@ void N2K_receive_task(void *pvParameters){
     
     NMEA2000.Open();
 
-    NMEA2000.ConfigureAlerts(alerts_to_enable);
+    //NMEA2000.ConfigureAlerts(alerts_to_enable);
 
     // Task Loop
     while(1)
     {
-        NMEA2000.CAN_read_frame();
+        //NMEA2000.CAN_read_frame();
         NMEA2000.ParseMessages(); // Calls message handle whenever a message is available
         rx_task_count++;
 
@@ -485,7 +486,7 @@ void N2K_send_task(void *pvParameters)
     {
         if( xQueueReceive( controller0_tx_queue, &msg, (100 / portTICK_PERIOD_MS) ))
         {
-            SendN2kMsg(msg);
+            //SendN2kMsg(msg);
         }
         ESP_LOGD(TAG_TWAI_TX, "Send task called");
 
@@ -746,22 +747,22 @@ extern "C" int app_main(void)
 
     /* Status Task*/
     esp_err_t result = ESP_OK;
-    printf( "create task");
-    xTaskCreatePinnedToCore(
-        &stats_task,            // Pointer to the task entry function.
-        "stats_task",           // A descriptive name for the task for debugging.
-        4096,                 // size of the task stack in bytes.
-        NULL,                 // Optional pointer to pvParameters
-        STATS_TASK_PRIO, // priority at which the task should run
-        &N2K_stats_task_handle,      // Optional pass back task handle
-        1
-    );
-    if (N2K_stats_task_handle == NULL)
-    {
-        printf("Unable to create task.");
-        result = ESP_ERR_NO_MEM;
-        goto err_out;
-    }
+    //printf( "create task");
+    //xTaskCreatePinnedToCore(
+    //    &stats_task,            // Pointer to the task entry function.
+    //    "stats_task",           // A descriptive name for the task for debugging.
+    //    4096,                 // size of the task stack in bytes.
+    //    NULL,                 // Optional pointer to pvParameters
+    //    STATS_TASK_PRIO, // priority at which the task should run
+    //    &N2K_stats_task_handle,      // Optional pass back task handle
+    //    1
+    //);
+    //if (N2K_stats_task_handle == NULL)
+    //{
+    //    printf("Unable to create task.");
+    //    result = ESP_ERR_NO_MEM;
+    //    goto err_out;
+    //}
 
     /* Sending task */
     ESP_LOGV(TAG_WASM, "create task");
