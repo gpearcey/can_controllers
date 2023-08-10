@@ -52,13 +52,14 @@
 
 
 // Tag for ESP logging
-static const char* TAG_MCP = "MCP";
+static const char* TAG = "MCP";
 
 
 //can_frame can_frame_r;
 
 bool interrupt = false;
-
+spi_device_handle_t spi;
+tNMEA2000_mcp NMEA2000(&spi,16,MCP_8MHZ,10,50);
 
 
 //bool SPI_Init(void)
@@ -127,21 +128,59 @@ void HandleNMEA2000Msg(const tN2kMsg &N2kMsg) {
           ESP_LOGE("Message Handle", "data out of range for signed array");
       }
   }
-  ESP_LOGD("MCP_TEST","PGN: %i",msg.PGN);
+  ESP_LOGD(TAG,"PGN: %i",msg.PGN);
+}
+/**
+ * \brief Sends a message
+ * 
+ * Converts NMEA-msg to the NMEA2000 Library N2kMsg format and sends the message
+ * 
+ * @todo update time to take time from message
+ * @todo update for multiple controllers
+ * 
+*/
+bool SendN2kMsg() {
+  tN2kMsg N2kMsg;
+  N2kMsg.Priority = 4;
+  N2kMsg.PGN = 126993;
+  N2kMsg.Source = 17;
+  N2kMsg.Destination = 0xff; //not used
+
+  N2kMsg.DataLen = 8;
+
+  //uint8ArrayToCharrArray(msg.data, N2kMsg.Data);
+  N2kMsg.Data[0] = 0x22;
+  N2kMsg.Data[1] = 0x44;
+  N2kMsg.Data[2] = 0x44;
+  N2kMsg.Data[3] = 0x22;
+  N2kMsg.Data[4] = 0x22;
+  N2kMsg.Data[5] = 0x22;
+  N2kMsg.Data[6] = 0x22;
+  N2kMsg.Data[7] = 0x22;
+
+
+  N2kMsg.MsgTime = N2kMillis64();//TODO 
+
+  if ( NMEA2000.SendMsg(N2kMsg) ) {
+    ESP_LOGD(TAG, "sent a message \n");
+  } else {
+    ESP_LOGW(TAG, "failed to send a message \n");
+  }
+  return true;
 }
 
 extern "C" int app_main(void)
 {
-    esp_log_level_set(TAG_MCP, MY_ESP_LOG_LEVEL);
+    esp_log_level_set(TAG, MY_ESP_LOG_LEVEL);
         printf("Hello from app_main!\n");
 	
-	spi_device_handle_t spi;
+
 	
 	struct can_frame frame;
 	
 
 	/* NMEA test*/
-	tNMEA2000_mcp NMEA2000(&spi,16,MCP_8MHZ,10,50);
+
     NMEA2000.SetN2kCANMsgBufSize(8);
     NMEA2000.SetN2kCANReceiveFrameBufSize(250);
     NMEA2000.EnableForward(false);               
@@ -155,7 +194,7 @@ extern "C" int app_main(void)
 
 	while(1){
 		NMEA2000.ParseMessages(); // Calls message handle whenever a message is available
-    
+		SendN2kMsg();
 		vTaskDelay(10); 
 	}
 
