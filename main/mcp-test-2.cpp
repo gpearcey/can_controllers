@@ -19,7 +19,10 @@
 #include "freertos/task.h"
 #include "freertos/semphr.h"
 //#include "can.h"
+//#include "mcp2515_grace.h"
 #include "mcp2515.h"
+//#include "NMEA2000.h"
+//#include "NMEA2000_mcp.h"
 
 #include "driver/gpio.h"
 #include "driver/spi_master.h"
@@ -94,24 +97,75 @@ bool interrupt = false;
 //    return true;
 //}
 
-
-
+/**
+ * \brief Creates a NMEA_msg object and adds it to.data the received messages queue
+ * 
+ * @todo handle out of range data
+ * \param N2kMsg Reference to the N2KMs being handled
+ * \return void
+ */
+void HandleNMEA2000Msg(const tN2kMsg &N2kMsg) {
+  if (N2kMsg.Source == 14){
+    ESP_LOGD("MCP_TEST", "source is 14");
+    return;
+  }
+  ESP_LOGD("MCP_TEST", "Message Handler called");
+  NMEA_msg msg;
+  msg.controller_number = 0;
+  msg.priority = N2kMsg.Priority;
+  msg.PGN = N2kMsg.PGN;
+  msg.source = N2kMsg.Source;
+  msg.data_length_bytes = N2kMsg.DataLen;
+  size_t size = sizeof(N2kMsg.Data) / sizeof(N2kMsg.Data[0]);
+  // Perform the conversion with range checking
+  for (size_t i = 0; i < size; i++) {
+      if (N2kMsg.Data[i] <= static_cast<unsigned char>(CHAR_MAX)) {
+          msg.data[i] = static_cast<signed char>(N2kMsg.Data[i]);
+      } else {
+          // Handle out-of-range value
+          //msg.data[i] = /* Your desired behavior for out-of-range values */;
+          ESP_LOGE("Message Handle", "data out of range for signed array");
+      }
+  }
+}
 
 extern "C" int app_main(void)
 {
     esp_log_level_set(TAG_MCP, MY_ESP_LOG_LEVEL);
         printf("Hello from app_main!\n");
-
-	struct can_frame frame;
+	
 	spi_device_handle_t spi;
+	
+	struct can_frame frame;
+	
 
-	MCP2515 mcp2515(&spi);
-	mcp2515.reset();
-	mcp2515.setBitrate(CAN_250KBPS,MCP_8MHZ);
-	mcp2515.setNormalMode();
+	/* NMEA test*/
+	//tNMEA2000_mcp NMEA2000(&spi,16,MCP_8MHZ,10,50);
+    //NMEA2000.SetN2kCANMsgBufSize(8);
+    //NMEA2000.SetN2kCANReceiveFrameBufSize(250);
+    //NMEA2000.EnableForward(false);               
+//
+    //NMEA2000.SetMsgHandler(HandleNMEA2000Msg);
+    //NMEA2000.SetMode(tNMEA2000::N2km_ListenAndSend);
+    //
+    //NMEA2000.Open();
+//
+	//
+//
+	//while(1){
+	//	NMEA2000.ParseMessages(); // Calls message handle whenever a message is available
+    //
+	//	vTaskDelay(10); 
+	//}
 
 
+	/* SPI test */
 
+	MCP2515 NMEA2000(&spi);
+	NMEA2000.reset();
+	NMEA2000.setBitrate(CAN_250KBPS,MCP_8MHZ);
+	NMEA2000.setNormalMode();
+	
 	frame.can_id = 0x89f80202;
 	frame.can_dlc = 8;
 	frame.data[0] = 0x01;
@@ -125,50 +179,25 @@ extern "C" int app_main(void)
 
 	
 	while(1){
-	//if (mcp2515.sendMessage(MCP2515::TXB0, &frame)==0)
-	if (mcp2515.sendMessage( &frame)==0)
-	{
-		printf("sucessfully sent message \n");
-	}
-	vTaskDelay(10); 
-  	if (mcp2515.readMessage(&frame) == MCP2515::ERROR_OK) {
-  	        // frame contains received message
-  	        printf("ID: %lx \n", frame.can_id);
-  	        printf("DATA %x ", frame.data[0]);
-			printf("DATA %x ", frame.data[1]);
-			printf("DATA %x \n", frame.data[2]);
-			//printf("DATA %x ", frame.data[3]);
-			//printf("DATA %x ", frame.data[4]);
-			//printf("DATA %x ", frame.data[5]);
-			//printf("DATA %x ", frame.data[6]);
-			//printf("DATA %x \n", frame.data[7]);
-
-  	}	//if(MCP2515_sendMessageAfterCtrlCheck(can_frame_rx[0]) != ERROR_OK){
-	//	//	ESP_LOGE(TAG_MCP, "Couldn't send message.");
-		//}
-        //if (MCP2515_readMessage(RXB0,&frame) == ERROR_OK) {
-	    //    // frame contains received message
-        //    ESP_LOGI(TAG_MCP, "Received msg RXB0");
-//
-        //    ESP_LOGD(TAG_MCP,"CAN ID: %lu", frame.can_id);
-        //    ESP_LOGD(TAG_MCP,"CAN dlc: %u", frame.can_dlc);
-        //    ESP_LOGD(TAG_MCP,"CAN data[1]: %u", frame.data[1]);
-        //}
-		//else{
-        //    ESP_LOGI(TAG_MCP, "Did not receive msg 0");
-        //}
-        //if (MCP2515_readMessage(RXB1,&frame) == ERROR_OK) {
-	    //    // frame contains received message
-        //    ESP_LOGI(TAG_MCP, "Received msg RXB1");
-//
-        //    ESP_LOGD(TAG_MCP,"CAN ID: %lu", frame.can_id);
-        //    ESP_LOGD(TAG_MCP,"CAN dlc: %u", frame.can_dlc);
-        //    ESP_LOGD(TAG_MCP,"CAN data[1]: %u", frame.data[1]);
-        //}
-        //else{
-        //    ESP_LOGI(TAG_MCP, "Did not receive msg 1");
-        //}
+		if (NMEA2000.sendMessage( MCP2515::TXB1,&frame)==0)
+		{
+			printf("sucessfully sent message \n");
+		}
+	
 		vTaskDelay(10); 
+  		//if (NMEA2000.readMessage(&frame) == MCP2515::ERROR_OK) {
+  		//        // frame contains received message
+  		//        printf("ID: %lx \n", frame.can_id);
+  		//        printf("DATA %x ", frame.data[0]);
+		//		printf("DATA %x ", frame.data[1]);
+		//		printf("DATA %x \n", frame.data[2]);
+		//		//printf("DATA %x ", frame.data[3]);
+		//		//printf("DATA %x ", frame.data[4]);
+		//		//printf("DATA %x ", frame.data[5]);
+		//		//printf("DATA %x ", frame.data[6]);
+		//		//printf("DATA %x \n", frame.data[7]);
+  		//}	
+
 	}
 
     return 0;

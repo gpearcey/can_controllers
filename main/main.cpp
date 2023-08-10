@@ -67,7 +67,7 @@ static const char* TAG_STATUS = "STATUS";
  * 
  * NMEA2000(TX_PIN, RX_PIN)
 */
-tNMEA2000_esp32c6 NMEA2000(GPIO_NUM_4, GPIO_NUM_5);
+tNMEA2000_esp32c6 NMEA2000(GPIO_NUM_22, GPIO_NUM_23);
 
 // Task Handles
 static TaskHandle_t N2K_send_task_handle = NULL;
