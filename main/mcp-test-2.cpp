@@ -19,10 +19,10 @@
 #include "freertos/task.h"
 #include "freertos/semphr.h"
 //#include "can.h"
-//#include "mcp2515_grace.h"
-#include "mcp2515.h"
+#include "mcp2515_grace.h"
+//#include "mcp2515.h"
 //#include "NMEA2000.h"
-//#include "NMEA2000_mcp.h"
+#include "NMEA2000_mcp.h"
 
 #include "driver/gpio.h"
 #include "driver/spi_master.h"
@@ -127,6 +127,7 @@ void HandleNMEA2000Msg(const tN2kMsg &N2kMsg) {
           ESP_LOGE("Message Handle", "data out of range for signed array");
       }
   }
+  ESP_LOGD("MCP_TEST","PGN: %i",msg.PGN);
 }
 
 extern "C" int app_main(void)
@@ -140,65 +141,65 @@ extern "C" int app_main(void)
 	
 
 	/* NMEA test*/
-	//tNMEA2000_mcp NMEA2000(&spi,16,MCP_8MHZ,10,50);
-    //NMEA2000.SetN2kCANMsgBufSize(8);
-    //NMEA2000.SetN2kCANReceiveFrameBufSize(250);
-    //NMEA2000.EnableForward(false);               
-//
-    //NMEA2000.SetMsgHandler(HandleNMEA2000Msg);
-    //NMEA2000.SetMode(tNMEA2000::N2km_ListenAndSend);
-    //
-    //NMEA2000.Open();
-//
-	//
-//
-	//while(1){
-	//	NMEA2000.ParseMessages(); // Calls message handle whenever a message is available
-    //
-	//	vTaskDelay(10); 
-	//}
+	tNMEA2000_mcp NMEA2000(&spi,16,MCP_8MHZ,10,50);
+    NMEA2000.SetN2kCANMsgBufSize(8);
+    NMEA2000.SetN2kCANReceiveFrameBufSize(250);
+    NMEA2000.EnableForward(false);               
+
+    NMEA2000.SetMsgHandler(HandleNMEA2000Msg);
+    NMEA2000.SetMode(tNMEA2000::N2km_ListenAndSend);
+    
+    NMEA2000.Open();
+
+	
+
+	while(1){
+		NMEA2000.ParseMessages(); // Calls message handle whenever a message is available
+    
+		vTaskDelay(10); 
+	}
 
 
 	/* SPI test */
 
-	MCP2515 NMEA2000(&spi);
-	NMEA2000.reset();
-	NMEA2000.setBitrate(CAN_250KBPS,MCP_8MHZ);
-	NMEA2000.setNormalMode();
-	
-	frame.can_id = 0x89f80202;
-	frame.can_dlc = 8;
-	frame.data[0] = 0x01;
-	frame.data[1] = 0x02;
-	frame.data[2] = 0x03;
-	frame.data[3] = 0x04;
-	frame.data[4] = 0x05;
-	frame.data[5] = 0x06;
-	frame.data[6] = 0x07;
-	frame.data[7] = 0x08;
-
-	
-	while(1){
-		if (NMEA2000.sendMessage( MCP2515::TXB1,&frame)==0)
-		{
-			printf("sucessfully sent message \n");
-		}
-	
-		vTaskDelay(10); 
-  		//if (NMEA2000.readMessage(&frame) == MCP2515::ERROR_OK) {
-  		//        // frame contains received message
-  		//        printf("ID: %lx \n", frame.can_id);
-  		//        printf("DATA %x ", frame.data[0]);
-		//		printf("DATA %x ", frame.data[1]);
-		//		printf("DATA %x \n", frame.data[2]);
-		//		//printf("DATA %x ", frame.data[3]);
-		//		//printf("DATA %x ", frame.data[4]);
-		//		//printf("DATA %x ", frame.data[5]);
-		//		//printf("DATA %x ", frame.data[6]);
-		//		//printf("DATA %x \n", frame.data[7]);
-  		//}	
-
-	}
-
+	//MCP2515 NMEA2000(&spi);
+	//NMEA2000.reset();
+	//NMEA2000.setBitrate(CAN_250KBPS,MCP_8MHZ);
+	//NMEA2000.setNormalMode();
+	//
+	//frame.can_id = 0x89f80202;
+	//frame.can_dlc = 8;
+	//frame.data[0] = 0x01;
+	//frame.data[1] = 0x02;
+	//frame.data[2] = 0x03;
+	//frame.data[3] = 0x04;
+	//frame.data[4] = 0x05;
+	//frame.data[5] = 0x06;
+	//frame.data[6] = 0x07;
+	//frame.data[7] = 0x08;
+//
+	//
+	//while(1){
+	//	if (NMEA2000.sendMessage( MCP2515::TXB1,&frame)==0)
+	//	{
+	//		printf("sucessfully sent message \n");
+	//	}
+	//
+	//	vTaskDelay(10); 
+  	//	//if (NMEA2000.readMessage(&frame) == MCP2515::ERROR_OK) {
+  	//	//        // frame contains received message
+  	//	//        printf("ID: %lx \n", frame.can_id);
+  	//	//        printf("DATA %x ", frame.data[0]);
+	//	//		printf("DATA %x ", frame.data[1]);
+	//	//		printf("DATA %x \n", frame.data[2]);
+	//	//		//printf("DATA %x ", frame.data[3]);
+	//	//		//printf("DATA %x ", frame.data[4]);
+	//	//		//printf("DATA %x ", frame.data[5]);
+	//	//		//printf("DATA %x ", frame.data[6]);
+	//	//		//printf("DATA %x \n", frame.data[7]);
+  	//	//}	
+//
+	//}
+//
     return 0;
 };
