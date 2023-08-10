@@ -110,7 +110,7 @@ void HandleNMEA2000Msg(const tN2kMsg &N2kMsg) {
     ESP_LOGD("MCP_TEST", "source is 14");
     return;
   }
-  ESP_LOGD("MCP_TEST", "Message Handler called");
+  //ESP_LOGD("MCP_TEST", "Message Handler called");
   NMEA_msg msg;
   msg.controller_number = 0;
   msg.priority = N2kMsg.Priority;
@@ -128,7 +128,7 @@ void HandleNMEA2000Msg(const tN2kMsg &N2kMsg) {
           ESP_LOGE("Message Handle", "data out of range for signed array");
       }
   }
-  ESP_LOGD(TAG,"PGN: %i",msg.PGN);
+  //ESP_LOGD(TAG,"PGN: %i",msg.PGN);
 }
 /**
  * \brief Sends a message
@@ -141,8 +141,8 @@ void HandleNMEA2000Msg(const tN2kMsg &N2kMsg) {
 */
 bool SendN2kMsg() {
   tN2kMsg N2kMsg;
-  N2kMsg.Priority = 4;
-  N2kMsg.PGN = 126993;
+  N2kMsg.Priority = 2;
+  N2kMsg.PGN = 59904;
   N2kMsg.Source = 17;
   N2kMsg.Destination = 0xff; //not used
 
@@ -151,12 +151,12 @@ bool SendN2kMsg() {
   //uint8ArrayToCharrArray(msg.data, N2kMsg.Data);
   N2kMsg.Data[0] = 0x22;
   N2kMsg.Data[1] = 0x44;
-  N2kMsg.Data[2] = 0x44;
-  N2kMsg.Data[3] = 0x22;
-  N2kMsg.Data[4] = 0x22;
-  N2kMsg.Data[5] = 0x22;
-  N2kMsg.Data[6] = 0x22;
-  N2kMsg.Data[7] = 0x22;
+  N2kMsg.Data[2] = 0x00;
+  N2kMsg.Data[3] = 0x00;
+  N2kMsg.Data[4] = 0x07;
+  N2kMsg.Data[5] = 0x00;
+  N2kMsg.Data[6] = 0x00;
+  N2kMsg.Data[7] = 0x00;
 
 
   N2kMsg.MsgTime = N2kMillis64();//TODO 
