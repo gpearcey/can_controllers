@@ -82,6 +82,8 @@ static TaskHandle_t N2K_stats_task_handle = NULL;
 QueueHandle_t controller0_tx_queue; //!< Queue that stores messages to be sent out on controller 0
 QueueHandle_t rx_queue; //!< Queue that stores all messages received on all controllers
 
+SemaphoreHandle_t xSemaphore;
+
 static unsigned long N2kMsgSentCount=0;
 static unsigned long N2kMsgFailCount=0;
 
@@ -493,9 +495,22 @@ void N2K_receive_task(void *pvParameters){
     // Task Loop
     while(1)
     {
-        //NMEA2000.CAN_read_frame();
+     if( xSemaphoreTake( xSemaphore, portMAX_DELAY ) == pdTRUE )
+     {
+         // We were able to obtain the semaphore and can now access the
+         // shared resource.
+        //NMEA2000.CAN_read_frame(); // for TWAI
         NMEA2000.ParseMessages(); // Calls message handle whenever a message is available
         rx_task_count++;
+
+        
+         // We have finished accessing the shared resource.  Release the
+         // semaphore.
+         xSemaphoreGive( xSemaphore );
+
+     }
+     vTaskDelay(1 / portTICK_PERIOD_MS);
+        
 
     }
     vTaskDelete(NULL); // should never get here...
@@ -513,14 +528,28 @@ void N2K_send_task(void *pvParameters)
 {   
     esp_log_level_set(TAG_TWAI_TX, MY_ESP_LOG_LEVEL);
     ESP_LOGI(TAG_TWAI_TX, "Starting N2k_task");
-    NMEA_msg msg;
+    NMEA_msg msg;receive_task
 
     // Task Loop
     for (;;)
     {
         if( xQueueReceive( controller0_tx_queue, &msg, (100 / portTICK_PERIOD_MS) ))
         {
-            SendN2kMsg(msg);
+            if( xSemaphoreTake( xSemaphore, portMAX_DELAY ) == pdTRUE )
+            {
+                // We were able to obtain the semaphore and can now access the
+                // shared resource.
+
+                SendN2kMsg(msg);
+                
+
+                // We have finished accessing the shared resource.  Release the
+                // semaphore.
+                xSemaphoreGive( xSemaphore );
+            }
+            //vTaskDelay(100);
+            
+            
         }
         ESP_LOGD(TAG_TWAI_TX, "Send task called");
 
@@ -546,7 +575,9 @@ void HandleNMEA2000Msg(const tN2kMsg &N2kMsg) {
   NMEA_msg msg;
   msg.controller_number = 0;
   msg.priority = N2kMsg.Priority;
+  
   msg.PGN = N2kMsg.PGN;
+  ESP_LOGD(TAG_TWAI_RX, "PGN %u", msg.PGN);
   msg.source = N2kMsg.Source;
   msg.data_length_bytes = N2kMsg.DataLen;
   size_t size = sizeof(N2kMsg.Data) / sizeof(N2kMsg.Data[0]);
@@ -730,7 +761,7 @@ void * iwasm_main(void *arg)
             ret = app_instance_main(wasm_module_inst);  //Call the main function 
             assert(!ret);
         } else{
-            vTaskDelay(10 / portTICK_PERIOD_MS); // I don't understand why this is nessesary
+            vTaskDelay(1 / portTICK_PERIOD_MS); // I don't understand why this is nessesary
         }
 
         auto end = std::chrono::high_resolution_clock::now();
@@ -779,6 +810,8 @@ extern "C" int app_main(void)
     controller0_tx_queue = xQueueCreate(TX_QUEUE_SIZE, sizeof(NMEA_msg));
     rx_queue = xQueueCreate(RX_QUEUE_SIZE, sizeof(NMEA_msg));
 
+    xSemaphore = xSemaphoreCreateMutex();
+
     /* Status Task*/
     esp_err_t result = ESP_OK;
     printf( "create task");
@@ -815,7 +848,6 @@ extern "C" int app_main(void)
         result = ESP_ERR_NO_MEM;
         goto err_out;
     }
-
     /* Receiving task */
     ESP_LOGV(TAG_TWAI_RX, "create task");
     xTaskCreatePinnedToCore(
