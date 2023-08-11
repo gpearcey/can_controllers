@@ -58,20 +58,15 @@
 #define RX_QUEUE_SIZE       100
 
 // Tag for ESP logging
-static const char* TAG_TWAI_TX = "TWAI_SEND";
-static const char* TAG_TWAI_RX = "TWAI_RECEIVE";
-static const char* TAG_WASM = "WASM";
-static const char* TAG_STATUS = "STATUS";
+static const char* TAG = "main";
 
-/**
- * @brief Creates a NMEA2000 Object
- * 
- * NMEA2000(TX_PIN, RX_PIN)
-*/
-//tNMEA2000_esp32c6 NMEA2000(GPIO_NUM_4, GPIO_NUM_5);
+spi_device_handle_t spi1; //!< MCP controller 1 spi handle
+spi_device_handle_t spi2; //!< MCP controller 2 spi handle
 
-spi_device_handle_t spi;
-tNMEA2000_mcp NMEA2000(&spi,16,MCP_8MHZ,10,50);
+tNMEA2000_esp32c6 C0(GPIO_NUM_4, GPIO_NUM_5);   //!< Controller 0 -> TWAI, (TX_PIN, RX_PIN)
+tNMEA2000_mcp C1(&spi1,16,MCP_8MHZ,10,50);      //!< Controller 1 -> MCP,  (spi_handle, CS_PIN, mcp_clk_freq, INT_PIN, _rx_frame_buf_size)
+tNMEA2000_mcp C2(&spi2,17,MCP_8MHZ,11,50);      //!< Controller 2 -> MCP,  (spi_handle, CS_PIN, mcp_clk_freq, INT_PIN, _rx_frame_buf_size)
+
 
 
 // Task Handles
