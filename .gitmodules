@@ -1,15 +1,9 @@
-[submodule "external/NMEA2000_esp32"]
-	path = external/NMEA2000_esp32
-	url = git@github.com:gpearcey/NMEA2000_esp32.git
 [submodule "external/NMEA2000"]
 	path = external/NMEA2000
 	url = git@github.com:gpearcey/NMEA2000.git
 [submodule "external/NMEA2000_esp32-c6"]
 	path = external/NMEA2000_esp32-c6
 	url = git@github.com:gpearcey/NMEA2000_esp32-c6.git
-[submodule "external/esp32-mcp2515"]
-	path = external/esp32-mcp2515
-	url = git@github.com:dedalqq/esp32-mcp2515.git
 [submodule "external/NMEA2000_esp32-c6_MCP"]
 	path = external/NMEA2000_esp32-c6_MCP
 	url = git@github.com:gpearcey/NMEA2000_esp32-c6_MCP.git

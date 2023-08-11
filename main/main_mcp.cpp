@@ -495,7 +495,8 @@ void N2K_receive_task(void *pvParameters){
     // Task Loop
     while(1)
     {
-     if( xSemaphoreTake( xSemaphore, portMAX_DELAY ) == pdTRUE )
+     if( xSemaphoreTake( xSemaphore, (100 / portTICK_PERIOD_MS) ) == pdTRUE )
+     //if( xSemaphoreTake( xSemaphore, portMAX_DELAY ) == pdTRUE )
      {
          // We were able to obtain the semaphore and can now access the
          // shared resource.
@@ -509,7 +510,9 @@ void N2K_receive_task(void *pvParameters){
          xSemaphoreGive( xSemaphore );
 
      }
-     vTaskDelay(1 / portTICK_PERIOD_MS);
+    vTaskDelay(10 / portTICK_PERIOD_MS);
+
+     
         
 
     }
@@ -528,7 +531,7 @@ void N2K_send_task(void *pvParameters)
 {   
     esp_log_level_set(TAG_TWAI_TX, MY_ESP_LOG_LEVEL);
     ESP_LOGI(TAG_TWAI_TX, "Starting N2k_task");
-    NMEA_msg msg;receive_task
+    NMEA_msg msg;
 
     // Task Loop
     for (;;)
@@ -761,7 +764,7 @@ void * iwasm_main(void *arg)
             ret = app_instance_main(wasm_module_inst);  //Call the main function 
             assert(!ret);
         } else{
-            vTaskDelay(1 / portTICK_PERIOD_MS); // I don't understand why this is nessesary
+            vTaskDelay(10 / portTICK_PERIOD_MS); // I don't understand why this is nessesary
         }
 
         auto end = std::chrono::high_resolution_clock::now();
