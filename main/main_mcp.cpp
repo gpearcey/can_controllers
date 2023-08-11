@@ -676,21 +676,22 @@ void C1_send_task(void *pvParameters)
     esp_log_level_set(TAG_MCP1_TX, MY_ESP_LOG_LEVEL);
     ESP_LOGI(TAG_TWAI_TX, "Starting N2k_task");
     NMEA_msg msg;
-    C1.SetN2kCANMsgBufSize(8);
-    C1.SetN2kCANReceiveFrameBufSize(250);
-    C1.EnableForward(false);              
-    C1.SetMsgHandler(HandleNMEA2000Msg);
-    C1.SetMode(tNMEA2000::N2km_SendOnly);
 
-    C1.Open();
+    //C1.SetN2kCANMsgBufSize(8); Uncomment these for send only
+    //C1.SetN2kCANReceiveFrameBufSize(250);
+    //C1.EnableForward(false);              
+    //C1.SetMsgHandler(HandleNMEA2000Msg);
+    //C1.SetMode(tNMEA2000::N2km_SendOnly);
+//
+    //C1.Open();
 
     // Task Loop
     for (;;)
     {
         if( xQueueReceive( C0_tx_queue, &msg, (100 / portTICK_PERIOD_MS) ))
         {
-            //if( xSemaphoreTake( x_sem_mcp1, portMAX_DELAY ) == pdTRUE )
-            //{
+            if( xSemaphoreTake( x_sem_mcp1, portMAX_DELAY ) == pdTRUE )
+            {
                 // We were able to obtain the semaphore and can now access the
                 // shared resource.
                 ESP_LOGD(TAG_MCP1_TX, "About to send message with PGN: %i", msg.PGN);
@@ -700,8 +701,8 @@ void C1_send_task(void *pvParameters)
 
                 // We have finished accessing the shared resource.  Release the
                 // semaphore.
-                //xSemaphoreGive( x_sem_mcp1 );
-            //}
+                xSemaphoreGive( x_sem_mcp1 );
+            }
             //vTaskDelay(100);
             
             
