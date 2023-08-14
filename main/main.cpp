@@ -26,6 +26,7 @@
 #include <N2kMessages.h>
 #include "esp_err.h"
 #include "esp_pthread.h"
+#include <NMEA2000_mcp.h>
 
 #include "driver/gpio.h"
 #include "bi-inc/attr_container.h"
@@ -39,6 +40,7 @@
 #include <string>
 #include <iomanip>
 #include <chrono>
+#include "driver/spi_master.h"
 
 //WebAssembley App
 #include "nmea_attack.h" 
@@ -56,30 +58,61 @@
 #define TX_QUEUE_SIZE       100
 #define RX_QUEUE_SIZE       100
 
+#define MCP0_TX             GPIO_NUM_22
+#define MCP0_RX             GPIO_NUM_23
+#define MCP1_CS             16
+#define MCP1_INT            10
+#define MCP2_CS             17
+#define MCP2_INT            11
+
+#define PRINT_STATS // Uncomment to print task stats periodically
+
 // Tag for ESP logging
-static const char* TAG_TWAI_TX = "TWAI_SEND";
-static const char* TAG_TWAI_RX = "TWAI_RECEIVE";
+static const char* TAG_TWAI = "TWAI";
 static const char* TAG_WASM = "WASM";
+static const char* TAG_MCP1 = "MCP1";
+static const char* TAG_MCP2 = "MCP2";
 static const char* TAG_STATUS = "STATUS";
 
-/**
- * @brief Creates a NMEA2000 Object
- * 
- * NMEA2000(TX_PIN, RX_PIN)
-*/
-tNMEA2000_esp32c6 NMEA2000(GPIO_NUM_4, GPIO_NUM_5);
+spi_device_handle_t spi1; //!< MCP controller 1 spi handle
+spi_device_handle_t spi2; //!< MCP controller 2 spi handle
+
+tNMEA2000_esp32c6 C0(MCP0_TX, MCP0_RX);   //!< Controller 0 -> TWAI, (TX_PIN, RX_PIN)
+tNMEA2000_mcp C1(&spi1,MCP1_CS,MCP_8MHZ,MCP1_INT,50);      //!< Controller 1 -> MCP,  (spi_handle, CS_PIN, mcp_clk_freq, INT_PIN, _rx_frame_buf_size)
+tNMEA2000_mcp C2(&spi2,MCP2_CS,MCP_8MHZ,MCP2_INT,50);      //!< Controller 2 -> MCP,  (spi_handle, CS_PIN, mcp_clk_freq, INT_PIN, _rx_frame_buf_size)
+
+
 
 // Task Handles
-static TaskHandle_t N2K_send_task_handle = NULL;
-static TaskHandle_t N2K_receive_task_handle = NULL;
-static TaskHandle_t N2K_stats_task_handle = NULL;
+static TaskHandle_t C0_send_task_handle = NULL;
+static TaskHandle_t C0_receive_task_handle = NULL;
+static TaskHandle_t C1_send_task_handle = NULL;
+static TaskHandle_t C1_receive_task_handle = NULL;
+static TaskHandle_t C2_send_task_handle = NULL;
+static TaskHandle_t C2_receive_task_handle = NULL;
+static TaskHandle_t stats_task_handle = NULL;
 
-QueueHandle_t controller0_tx_queue; //!< Queue that stores messages to be sent out on controller 0
+QueueHandle_t C0_tx_queue; //!< Queue that stores messages to be sent out on controller 0
+QueueHandle_t C1_tx_queue; //!< Queue that stores messages to be sent out on controller 1
+QueueHandle_t C2_tx_queue; //!< Queue that stores messages to be sent out on controller 2
 QueueHandle_t rx_queue; //!< Queue that stores all messages received on all controllers
 
-static unsigned long N2kMsgSentCount=0;
-static unsigned long N2kMsgFailCount=0;
+SemaphoreHandle_t x_sem_mcp1; //!< Semaphore handle for MCP1
+SemaphoreHandle_t x_sem_mcp2; //!< Semaphore handle for MCP2
 
+static unsigned long C0_MsgSentCount=0;
+static unsigned long C0_MsgFailCount=0;
+static unsigned long C1_MsgSentCount=0;
+static unsigned long C1_MsgFailCount=0;
+static unsigned long C2_MsgSentCount=0;
+static unsigned long C2_MsgFailCount=0;
+
+/// @brief enum to store identifiers for each controller
+enum CONTROLLER {
+    C0_NUM = 0,
+    C1_NUM = 1,
+    C2_NUM = 2
+};
 
 //----------------------------------------------------------------------------------------------------------------------------
 // Forward Declarations
@@ -96,8 +129,12 @@ int send_msg_count = 0; //!< Used to track messages sent
 uint32_t alerts_to_enable = TWAI_ALERT_RX_DATA | TWAI_ALERT_TX_FAILED | TWAI_ALERT_RX_QUEUE_FULL; //!< Sets which alerts to enable for TWAI controller
 
 // Task Counters - temporary, for debugging
-int rx_task_count = 0;
-int tx_task_count = 0;
+int C0_rx_task_count = 0;
+int C0_tx_task_count = 0;
+int C1_rx_task_count = 0;
+int C1_tx_task_count = 0;
+int C2_rx_task_count = 0;
+int C2_tx_task_count = 0;
 int wasm_pthread_count = 0;
 int stats_task_count = 0;
 double wasm_main_duration;
@@ -174,12 +211,32 @@ int32_t SendMsg(wasm_exec_env_t exec_env, int32_t controller_number, int32_t pri
     }
 
     
-    if (controller_number == 0){
+    if (controller_number == C0_NUM){
         // Add to controller 0 queue
         ESP_LOGD(TAG_WASM,"Added a msg to ctrl0_q with PGN %u \n", msg.PGN);
-        if (xQueueSendToBack(controller0_tx_queue, &msg, pdMS_TO_TICKS(10))){
+        if (xQueueSendToBack(C0_tx_queue, &msg, pdMS_TO_TICKS(10))){
             return 1;
         }
+    }
+    else if(controller_number == C1_NUM)
+    {
+        // Add to controller 1 queue
+        ESP_LOGD(TAG_WASM,"Added a msg to ctrl1_q with PGN %u \n", msg.PGN);
+        if (xQueueSendToBack(C1_tx_queue, &msg, pdMS_TO_TICKS(10))){
+            return 1;
+        }
+    }
+    else if(controller_number == C2_NUM)
+    {
+        // Add to controller 2 queue
+        ESP_LOGD(TAG_WASM,"Added a msg to ctrl2_q with PGN %u \n", msg.PGN);
+        if (xQueueSendToBack(C2_tx_queue, &msg, pdMS_TO_TICKS(10))){
+            return 1;
+        }
+    }
+    else{
+        ESP_LOGE(TAG_WASM, "Invalid controller number: %" PRIu32 "", controller_number);
+        return 0;
     }
 
     return 0;
@@ -236,7 +293,7 @@ void uint8ArrayToCharrArray(uint8_t (&data_uint8_arr)[MAX_DATA_LENGTH_BTYES], un
  * @todo update for multiple controllers
  * 
 */
-bool SendN2kMsg(NMEA_msg msg) {
+bool SendN2kMsg(NMEA_msg msg, int controller_num) {
   tN2kMsg N2kMsg;
   N2kMsg.Priority = msg.priority;
   N2kMsg.PGN = msg.PGN;
@@ -249,15 +306,38 @@ bool SendN2kMsg(NMEA_msg msg) {
 
   N2kMsg.MsgTime = N2kMillis64();//TODO 
 
-  if ( NMEA2000.SendMsg(N2kMsg) ) {
-    ESP_LOGD(TAG_TWAI_TX, "sent a message \n");
-    N2kMsgSentCount++;
-    send_msg_count++;
-  } else {
-    ESP_LOGW(TAG_TWAI_TX, "failed to send a message \n");
-    N2kMsgFailCount++;
+  if(controller_num == C0_NUM){
+    if ( C0.SendMsg(N2kMsg) ) {
+      ESP_LOGD(TAG_TWAI, "sent a message \n");
+      C0_MsgSentCount++;
+      send_msg_count++;
+    } else {
+      ESP_LOGW(TAG_TWAI, "failed to send a message \n");
+      C0_MsgFailCount++;
+    }
   }
-  return true;
+  else if(controller_num == C1_NUM){
+    if ( C1.SendMsg(N2kMsg) ) {
+      ESP_LOGD(TAG_MCP1, "sent a message \n");
+      C1_MsgSentCount++;
+      send_msg_count++;
+    } else {
+      ESP_LOGW(TAG_MCP1, "failed to send a message \n");
+      C1_MsgFailCount++;
+    }
+  }
+  else if(controller_num == C2_NUM){
+    if ( C2.SendMsg(N2kMsg) ) {
+      ESP_LOGD(TAG_MCP2, "sent a message \n");
+      C2_MsgSentCount++;
+      send_msg_count++;
+    } else {
+      ESP_LOGW(TAG_MCP2, "failed to send a message \n");
+      C2_MsgFailCount++;
+    }
+  }
+
+    return true;
 }
 
 /**
@@ -382,30 +462,39 @@ static esp_err_t print_real_time_stats(TickType_t xTicksToWait)
 */
 void GetStatus(const char* TAG){
     uint32_t alerts = 0;
-    NMEA2000.ReadAlerts(alerts, pdMS_TO_TICKS(1));
+    C0.ReadAlerts(alerts, pdMS_TO_TICKS(1));
     if (alerts & TWAI_ALERT_RX_QUEUE_FULL){
         ESP_LOGW(TAG, "TWAI rx queue full");
     } 
     twai_status_info_t status;
-    NMEA2000.GetTwaiStatus(status);
-    ESP_LOGI(TAG, "Msgs queued for transmission: %" PRIu32 " Unread messages in rx queue: %" PRIu32, status.msgs_to_tx, status.msgs_to_rx);
-    ESP_LOGI(TAG, "Msgs lost due to RX FIFO overrun: %" PRIu32 "", status.rx_overrun_count);
-    ESP_LOGI(TAG, "Msgs lost due to full RX queue: %" PRIu32 "", status.rx_missed_count);
+    C0.GetTwaiStatus(status);
+    ESP_LOGI(TAG, "TWAI Msgs queued for transmission: %" PRIu32 " Unread messages in rx queue: %" PRIu32, status.msgs_to_tx, status.msgs_to_rx);
+    ESP_LOGI(TAG, "Msgs lost due to TWAI RX FIFO overrun: %" PRIu32 "", status.rx_overrun_count);
+    ESP_LOGI(TAG, "Msgs lost due to full TWAI RX queue: %" PRIu32 "", status.rx_missed_count);
     ESP_LOGI(TAG, "Messages Read: %d, Messages Sent %d", read_msg_count, send_msg_count);
     UBaseType_t msgs_in_rx_q = uxQueueMessagesWaiting(rx_queue);
     ESP_LOGI(TAG, "Received Messages queue size: %d \n", msgs_in_rx_q);
-    UBaseType_t msgs_in_q = uxQueueMessagesWaiting(controller0_tx_queue);
-    ESP_LOGI(TAG, "Controller 0 send queue size: %d \n", msgs_in_q);
+    UBaseType_t msgs_in_q0 = uxQueueMessagesWaiting(C0_tx_queue);
+    UBaseType_t msgs_in_q1 = uxQueueMessagesWaiting(C1_tx_queue);
+    UBaseType_t msgs_in_q2 = uxQueueMessagesWaiting(C2_tx_queue);
+    ESP_LOGI(TAG, "Controller 0 send queue size: %d \n", msgs_in_q0);
+    ESP_LOGI(TAG, "Controller 1 send queue size: %d \n", msgs_in_q1);
+    ESP_LOGI(TAG, "Controller 2 send queue size: %d \n", msgs_in_q2);
 
     // Task Counters
-    ESP_LOGI(TAG, "RX task count: %d", rx_task_count);
-    ESP_LOGI(TAG, "TX task count: %d", tx_task_count);
+    ESP_LOGI(TAG, "RX task count: %d", C0_rx_task_count);
+    ESP_LOGI(TAG, "TX task count: %d", C0_tx_task_count);
+    ESP_LOGI(TAG, "MCP1 RX task count: %d", C1_rx_task_count);
+    ESP_LOGI(TAG, "MCP1 TX task count: %d", C1_tx_task_count);
+    ESP_LOGI(TAG, "MCP2 RX task count: %d", C2_rx_task_count);
+    ESP_LOGI(TAG, "MCP2 TX task count: %d", C2_tx_task_count);
     ESP_LOGI(TAG, "Wasm pthread count: %d", wasm_pthread_count);
     ESP_LOGI(TAG, "Stats task count: %d", stats_task_count);
 
     //Duration of the app_instance_main for the wasm pthread
     ESP_LOGI(TAG, "Duration of wasm task (ms): %f",wasm_main_duration/1000000);
 }
+
 /**
  * @brief Optional FreeRTOS task for printing status messages for debugging 
  * 
@@ -428,6 +517,9 @@ static void stats_task(void *arg)
     }
 }
 
+//--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// Controller 0 (TWAI)
+//--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 /**
  * @brief FreeRTOS task for receiving messages from CAN controller
  * 
@@ -438,26 +530,24 @@ static void stats_task(void *arg)
  * In this library, the receiving is separated from the processing and sending of messages. This is done because 
  * I was unable to trigger recieving a CAN frame from the twai rx interrupt, so CAN_read_frame() must be called explicitly here. 
 */
-void N2K_receive_task(void *pvParameters){
-    esp_log_level_set(TAG_TWAI_RX, MY_ESP_LOG_LEVEL);
-    NMEA2000.SetN2kCANMsgBufSize(8);
-    NMEA2000.SetN2kCANReceiveFrameBufSize(250);
-    NMEA2000.EnableForward(false);               
-
-    NMEA2000.SetMsgHandler(HandleNMEA2000Msg);
-    NMEA2000.SetMode(tNMEA2000::N2km_ListenAndSend);
-    
-    NMEA2000.Open();
-
-    NMEA2000.ConfigureAlerts(alerts_to_enable);
+void C0_receive_task(void *pvParameters){
+    esp_log_level_set(TAG_TWAI, MY_ESP_LOG_LEVEL);
+    C0.SetN2kCANMsgBufSize(8);
+    C0.SetN2kCANReceiveFrameBufSize(250);
+    C0.EnableForward(false);               
+    C0.SetMsgHandler(HandleNMEA2000Msg);
+    C0.SetMode(tNMEA2000::N2km_ListenAndSend);    
+    C0.Open();
+    C0.ConfigureAlerts(alerts_to_enable);
 
     // Task Loop
     while(1)
     {
-        NMEA2000.CAN_read_frame();
-        NMEA2000.ParseMessages(); // Calls message handle whenever a message is available
-        rx_task_count++;
+        C0.CAN_read_frame(); // retrieves available messages - for TWAI controller only
+        C0.ParseMessages(); // Calls message handle whenever a message is available
+        C0_rx_task_count++;
 
+        vTaskDelay(10 / portTICK_PERIOD_MS);           
     }
     vTaskDelete(NULL); // should never get here...
 }
@@ -465,31 +555,188 @@ void N2K_receive_task(void *pvParameters){
 /**
  * @brief FreeRTOS task for processing and sending messages from CAN controller with NMEA2000 library
  * 
- * Initializes NMEA2000 Object, then sends messages in loop.
+ * Tries to receive a message from the controller 0 tx queue, and sends it if available
  * 
  * @todo frame buffer should be 32 - see if this works
  * @param pvParameters
 */
-void N2K_send_task(void *pvParameters)
+void C0_send_task(void *pvParameters)
 {   
-    esp_log_level_set(TAG_TWAI_TX, MY_ESP_LOG_LEVEL);
-    ESP_LOGI(TAG_TWAI_TX, "Starting N2k_task");
+    esp_log_level_set(TAG_TWAI, MY_ESP_LOG_LEVEL);
+    ESP_LOGI(TAG_TWAI, "Starting C0_send_task");
     NMEA_msg msg;
 
     // Task Loop
     for (;;)
     {
-        if( xQueueReceive( controller0_tx_queue, &msg, (100 / portTICK_PERIOD_MS) ))
+        if( xQueueReceive( C0_tx_queue, &msg, (100 / portTICK_PERIOD_MS) ))
         {
-            SendN2kMsg(msg);
-        }
-        ESP_LOGD(TAG_TWAI_TX, "Send task called");
 
-        tx_task_count++;        
+            SendN2kMsg(msg, C0_NUM);
+  
+        }
+        ESP_LOGV(TAG_TWAI, "Send task called");
+
+        C0_tx_task_count++;        
     }
     vTaskDelete(NULL); // should never get here...
 }
 
+//--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// Controller 1 (MCP)
+//--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+/**
+ * @brief FreeRTOS task for receiving messages from MCP CAN controller 1
+ * 
+ * Sets up a NMEA2000 Object with the MCP class. Initializes the SPI bus and adds a device to the bus. 
+ * Semaphore is used so that send and receive tasks don't access the same device at the same time. 
+ * 
+ * @param pvParameters
+ * 
+*/
+void C1_receive_task(void *pvParameters){
+    esp_log_level_set(TAG_MCP1, MY_ESP_LOG_LEVEL);
+    C1.SetN2kCANMsgBufSize(8);
+    C1.SetN2kCANReceiveFrameBufSize(250);
+    C1.EnableForward(false);              
+    C1.SetMsgHandler(HandleNMEA2000Msg);
+    C1.SetMode(tNMEA2000::N2km_ListenAndSend);
+    C1.CANinit(); // Initialize SPI bus, call before C1.Open() and only call once for all the MCP tasks
+    C1.Open(); 
+
+    // Task Loop
+    while(1)
+    {
+        if( xSemaphoreTake( x_sem_mcp1, (100 / portTICK_PERIOD_MS) ) == pdTRUE )
+        {
+            // We were able to obtain the semaphore and can now access the shared resource.
+            C1.ParseMessages(); // Calls message handle whenever a message is available    
+            // We have finished accessing the shared resource.  Release the semaphore.
+            xSemaphoreGive( x_sem_mcp1 );
+            vTaskDelay(10 / portTICK_PERIOD_MS);   
+        }
+        C1_rx_task_count++;
+        vTaskDelay(10 / portTICK_PERIOD_MS);        
+    
+    }
+    vTaskDelete(NULL); // should never get here...
+}
+
+/**
+ * @brief FreeRTOS task for processing and sending messages from MCP CAN controller 1 with NMEA2000 library
+ * 
+ * Tries to receive a message from the controller 1 tx queue, and sends it if available
+ * Semaphore is used so that send and receive tasks don't access the same device at the same time. 
+ * 
+ * @param pvParameters
+*/
+void C1_send_task(void *pvParameters)
+{   
+    esp_log_level_set(TAG_MCP1, MY_ESP_LOG_LEVEL);
+    ESP_LOGI(TAG_TWAI, "Starting C1_send_task");
+    NMEA_msg msg;
+
+    // Task Loop
+    for (;;)
+    {
+        if( xQueueReceive( C1_tx_queue, &msg, (100 / portTICK_PERIOD_MS) ))
+        {
+            if( xSemaphoreTake( x_sem_mcp1, portMAX_DELAY ) == pdTRUE )
+            {
+                // We were able to obtain the semaphore and can now access the shared resource.
+                ESP_LOGD(TAG_MCP1, "About to send message with PGN: %i", msg.PGN);
+
+                SendN2kMsg(msg, C1_NUM);
+                
+                // We have finished accessing the shared resource.  Release the semaphore.
+                xSemaphoreGive( x_sem_mcp1 );
+            }
+            vTaskDelay(10);          
+            
+        }
+        ESP_LOGD(TAG_TWAI, "Send task called");
+
+        C1_tx_task_count++;        
+    }
+    vTaskDelete(NULL); // should never get here...
+}
+
+//--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// Controller 2 (MCP)
+//--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+/**
+ * @brief FreeRTOS task for receiving messages from MCP CAN controller 2
+ * 
+ * Sets up a NMEA2000 Object with the MCP class. Adds a device to the bus. It does not need to initialize the SPI bus because the MCP1 recieve task has already done that.
+ * Semaphore is used so that send and receive tasks don't access the same device at the same time. 
+ * 
+ * @param pvParameters
+ * 
+*/
+void C2_receive_task(void *pvParameters){
+    esp_log_level_set(TAG_MCP2, MY_ESP_LOG_LEVEL);
+
+    C2.SetN2kCANMsgBufSize(8);
+    C2.SetN2kCANReceiveFrameBufSize(250);
+    C2.EnableForward(false);              
+    C2.SetMsgHandler(HandleNMEA2000Msg);
+    C2.SetMode(tNMEA2000::N2km_ListenAndSend);
+
+    C2.Open();
+    // Task Loop
+    while(1)
+    {
+        if( xSemaphoreTake( x_sem_mcp2, (100 / portTICK_PERIOD_MS) ) == pdTRUE )
+        {
+            // We were able to obtain the semaphore and can now access the shared resource.
+            C2.ParseMessages(); // Calls message handle whenever a message is available     
+
+            xSemaphoreGive( x_sem_mcp2 ); // We have finished accessing the shared resource.  Release the semaphore.
+            vTaskDelay(100 / portTICK_PERIOD_MS);   
+        }
+        C2_rx_task_count++;
+        vTaskDelay(10 / portTICK_PERIOD_MS);           
+    
+    }
+    vTaskDelete(NULL); // should never get here...
+}
+
+/**
+ * @brief FreeRTOS task for processing and sending messages from MCP CAN controller 2 with NMEA2000 library
+ * 
+ * Tries to receive a message from the controller 2 tx queue, and sends it if available
+ * Semaphore is used so that send and receive tasks don't access the same device at the same time. 
+ * 
+ * @param pvParameters
+*/
+void C2_send_task(void *pvParameters)
+{   
+    esp_log_level_set(TAG_MCP2, MY_ESP_LOG_LEVEL);
+    ESP_LOGI(TAG_TWAI, "Starting C2_send_task");
+    NMEA_msg msg;
+    
+    // Task Loop
+    for (;;)
+    {
+        if( xQueueReceive( C2_tx_queue, &msg, (100 / portTICK_PERIOD_MS) ))
+        {
+            if( xSemaphoreTake( x_sem_mcp2, portMAX_DELAY ) == pdTRUE )
+            {
+                // We were able to obtain the semaphore and can now access the shared resource.
+                ESP_LOGD(TAG_MCP2, "About to send message with PGN: %i", msg.PGN);
+
+                SendN2kMsg(msg, C2_NUM);            
+                xSemaphoreGive( x_sem_mcp2 ); // We have finished accessing the shared resource.  Release the semaphore.
+            }
+            vTaskDelay(10);          
+            
+        }
+        ESP_LOGD(TAG_TWAI, "Send task called");
+
+        C2_tx_task_count++;        
+    }
+    vTaskDelete(NULL); // should never get here...
+}
 
 /**
  * \brief Creates a NMEA_msg object and adds it to.data the received messages queue
@@ -500,14 +747,16 @@ void N2K_send_task(void *pvParameters)
  */
 void HandleNMEA2000Msg(const tN2kMsg &N2kMsg) {
   if (N2kMsg.Source == 14){
-    ESP_LOGD(TAG_TWAI_RX, "source is 14");
+    ESP_LOGD(TAG_TWAI, "source is 14");
     return;
   }
-  ESP_LOGD(TAG_TWAI_RX, "Message Handler called");
+  ESP_LOGV(TAG_TWAI, "Message Handler called");
   NMEA_msg msg;
   msg.controller_number = 0;
   msg.priority = N2kMsg.Priority;
+  
   msg.PGN = N2kMsg.PGN;
+  ESP_LOGD(TAG_TWAI, "PGN %u", msg.PGN);
   msg.source = N2kMsg.Source;
   msg.data_length_bytes = N2kMsg.DataLen;
   size_t size = sizeof(N2kMsg.Data) / sizeof(N2kMsg.Data[0]);
@@ -523,10 +772,10 @@ void HandleNMEA2000Msg(const tN2kMsg &N2kMsg) {
   }
 
   if(xQueueSendToBack(rx_queue, &msg, pdMS_TO_TICKS(10)) == 0){
-    ESP_LOGW(TAG_TWAI_RX, "Could not add received message to RX queue");    
+    ESP_LOGW(TAG_TWAI, "Could not add received message to RX queue");    
   }
   else{
-    ESP_LOGD(TAG_TWAI_RX, " added msg to received queue");
+    ESP_LOGV(TAG_TWAI, " added msg to received queue");
   }
   read_msg_count++;
   
@@ -682,7 +931,7 @@ void * iwasm_main(void *arg)
 
     // Task Loop
     while (true){
-        ESP_LOGD(TAG_WASM, "run main() of the application");
+        ESP_LOGV(TAG_WASM, "run main() of the application");
         auto start = std::chrono::high_resolution_clock::now(); 
         NMEA_msg msg;
         if (xQueueReceive(rx_queue, &msg, (100 / portTICK_PERIOD_MS) == 1)){
@@ -737,11 +986,18 @@ fail:
 */
 extern "C" int app_main(void)
 {
-    controller0_tx_queue = xQueueCreate(TX_QUEUE_SIZE, sizeof(NMEA_msg));
+    C0_tx_queue = xQueueCreate(TX_QUEUE_SIZE, sizeof(NMEA_msg));
+    C1_tx_queue = xQueueCreate(TX_QUEUE_SIZE, sizeof(NMEA_msg));
+    C2_tx_queue = xQueueCreate(TX_QUEUE_SIZE, sizeof(NMEA_msg));
     rx_queue = xQueueCreate(RX_QUEUE_SIZE, sizeof(NMEA_msg));
 
-    /* Status Task*/
+    x_sem_mcp1 = xSemaphoreCreateMutex();
+    x_sem_mcp2 = xSemaphoreCreateMutex();
+
     esp_err_t result = ESP_OK;
+
+#ifdef PRINT_STATS
+    /* Status Task*/
     printf( "create task");
     xTaskCreatePinnedToCore(
         &stats_task,            // Pointer to the task entry function.
@@ -749,51 +1005,120 @@ extern "C" int app_main(void)
         4096,                 // size of the task stack in bytes.
         NULL,                 // Optional pointer to pvParameters
         STATS_TASK_PRIO, // priority at which the task should run
-        &N2K_stats_task_handle,      // Optional pass back task handle
+        &stats_task_handle,      // Optional pass back task handle
         1
     );
-    if (N2K_stats_task_handle == NULL)
+    if (stats_task_handle == NULL)
     {
         printf("Unable to create task.");
         result = ESP_ERR_NO_MEM;
         goto err_out;
     }
+#endif
 
-    /* Sending task */
+    /* Controller 0 Sending task */
     ESP_LOGV(TAG_WASM, "create task");
     xTaskCreatePinnedToCore(
-        &N2K_send_task,            // Pointer to the task entry function.
+        &C0_send_task,            // Pointer to the task entry function.
         "Send_task",           // A descriptive name for the task for debugging.
         3072,                 // size of the task stack in bytes.
         NULL,                 // Optional pointer to pvParameters
         tskIDLE_PRIORITY+1, // priority at which the task should run
-        &N2K_send_task_handle,      // Optional pass back task handle
+        &C0_send_task_handle,      // Optional pass back task handle
         1
     );
-    if (N2K_send_task_handle == NULL)
+    if (C0_send_task_handle == NULL)
     {
-        ESP_LOGE(TAG_TWAI_TX, "Unable to create task.");
+        ESP_LOGE(TAG_TWAI, "Unable to create task.");
         result = ESP_ERR_NO_MEM;
         goto err_out;
     }
-
-    /* Receiving task */
-    ESP_LOGV(TAG_TWAI_RX, "create task");
+    /* Controller 0 Receiving task */
+    ESP_LOGV(TAG_TWAI, "create task");
     xTaskCreatePinnedToCore(
-        &N2K_receive_task,            // Pointer to the task entry function.
+        &C0_receive_task,            // Pointer to the task entry function.
         "Receive_task",           // A descriptive name for the task for debugging.
         3072,                 // size of the task stack in bytes.
         NULL,                 // Optional pointer to pvParameters
         tskIDLE_PRIORITY+3, // priority at which the task should run
-        &N2K_receive_task_handle,      // Optional pass back task handle
+        &C0_receive_task_handle,      // Optional pass back task handle
         0
     );
-    if (N2K_receive_task_handle == NULL)
+    if (C0_receive_task_handle == NULL)
     {
-        ESP_LOGE(TAG_TWAI_RX, "Unable to create task.");
+        ESP_LOGE(TAG_TWAI, "Unable to create task.");
         result = ESP_ERR_NO_MEM;
         goto err_out;
 
+    }
+
+    /* Controller 1 Sending task */
+    ESP_LOGV(TAG_MCP1, "create task");
+    xTaskCreatePinnedToCore(
+        &C1_send_task,            // Pointer to the task entry function.
+        "Send_task",           // A descriptive name for the task for debugging.
+        3072,                 // size of the task stack in bytes.
+        NULL,                 // Optional pointer to pvParameters
+        tskIDLE_PRIORITY+1, // priority at which the task should run
+        &C1_send_task_handle,      // Optional pass back task handle
+        1
+    );
+    if (C1_send_task_handle == NULL)
+    {
+        ESP_LOGE(TAG_MCP1, "Unable to create task.");
+        result = ESP_ERR_NO_MEM;
+        goto err_out;
+    }
+    ///* Controller 1 Receiving task */
+    ESP_LOGV(TAG_MCP1, "create task");
+    xTaskCreatePinnedToCore(
+        &C1_receive_task,            // Pointer to the task entry function.
+        "Receive_task",           // A descriptive name for the task for debugging.
+        3072,                 // size of the task stack in bytes.
+        NULL,                 // Optional pointer to pvParameters
+        tskIDLE_PRIORITY+3, // priority at which the task should run
+        &C1_receive_task_handle,      // Optional pass back task handle
+        0
+    );
+    if (C1_receive_task_handle == NULL)
+    {
+        ESP_LOGE(TAG_MCP1, "Unable to create task.");
+        result = ESP_ERR_NO_MEM;
+        goto err_out;
+    }
+    /* Controller 2 Sending task */
+    ESP_LOGV(TAG_MCP2, "create task");
+    xTaskCreatePinnedToCore(
+        &C2_send_task,            // Pointer to the task entry function.
+        "Send_task",           // A descriptive name for the task for debugging.
+        3072,                 // size of the task stack in bytes.
+        NULL,                 // Optional pointer to pvParameters
+        tskIDLE_PRIORITY+1, // priority at which the task should run
+        &C2_send_task_handle,      // Optional pass back task handle
+        1
+    );
+    if (C2_send_task_handle == NULL)
+    {
+        ESP_LOGE(TAG_MCP2, "Unable to create task.");
+        result = ESP_ERR_NO_MEM;
+        goto err_out;
+    }
+    ///* Controller 2 Receiving task */
+    ESP_LOGV(TAG_MCP2, "create task");
+    xTaskCreatePinnedToCore(
+        &C2_receive_task,            // Pointer to the task entry function.
+        "Receive_task",           // A descriptive name for the task for debugging.
+        3072,                 // size of the task stack in bytes.
+        NULL,                 // Optional pointer to pvParameters
+        tskIDLE_PRIORITY+3, // priority at which the task should run
+        &C2_receive_task_handle,      // Optional pass back task handle
+        0
+    );
+    if (C2_receive_task_handle == NULL)
+    {
+        ESP_LOGE(TAG_MCP2, "Unable to create task.");
+        result = ESP_ERR_NO_MEM;
+        goto err_out;
     }
 
     /* Wasm pthread */
@@ -827,14 +1152,22 @@ extern "C" int app_main(void)
 err_out:
     if (result != ESP_OK)
     {
-        if (N2K_send_task_handle != NULL || N2K_receive_task_handle != NULL || N2K_stats_task_handle != NULL)
+        if (C0_send_task_handle != NULL || C0_receive_task_handle != NULL || C1_send_task_handle != NULL || C1_receive_task_handle != NULL || C2_send_task_handle != NULL || C2_receive_task_handle != NULL|| stats_task_handle != NULL)
         {
-            vTaskDelete(N2K_send_task_handle);
-            vTaskDelete(N2K_receive_task_handle);
-            vTaskDelete(N2K_stats_task_handle);
-            N2K_send_task_handle = NULL;
-            N2K_receive_task_handle = NULL;
-            N2K_stats_task_handle = NULL;
+            vTaskDelete(C0_send_task_handle);
+            vTaskDelete(C0_receive_task_handle);
+            vTaskDelete(C1_send_task_handle);
+            vTaskDelete(C1_receive_task_handle);
+            vTaskDelete(C2_send_task_handle);
+            vTaskDelete(C2_receive_task_handle);
+            vTaskDelete(stats_task_handle);
+            C0_send_task_handle = NULL;
+            C0_receive_task_handle = NULL;
+            C1_send_task_handle = NULL;
+            C1_receive_task_handle = NULL;
+            C2_send_task_handle = NULL;
+            C2_receive_task_handle = NULL;
+            stats_task_handle = NULL;
         }
     }
 
