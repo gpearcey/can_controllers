@@ -50,6 +50,7 @@
 #define PTHREAD_STACK_SIZE              4096
 #define MAX_DATA_LENGTH_BTYES           223
 #define BUFFER_SIZE                     (10 + 223*2) //10 bytes for id, 223*2 bytes for data
+#define MODE_BUFFER_SIZE                1 // 1 byte to store modes 0 -> 3
 #define MY_ESP_LOG_LEVEL                ESP_LOG_INFO // the log level for this file
 
 #define STATS_TASK_PRIO     tskIDLE_PRIORITY //3
@@ -138,8 +139,10 @@ void uintArrToCharrArray(uint8_t (&data_uint8_arr)[MAX_DATA_LENGTH_BTYES], unsig
 // Variables
 //-----------------------------------------------------------------------------------------------------------------------------
 char * wasm_buffer = NULL;  //!< buffer allocated for wasm app, used to hold received messages so app can access them
+char * wasm_mode_buffer = NULL;  //!< buffer allocated for wasm app, used to hold current t connector mode set by Raspberry Pi
 int read_msg_count = 0; //!< Used to track messages read
 int send_msg_count = 0; //!< Used to track messages sent
+std::string tc_mode = "1"; //!< Contains the T Connector mode-> 0 - OFF, 1 - PASSIVE, 2 - GPS_ATTACK, 3 - TBD
 uint32_t alerts_to_enable = TWAI_ALERT_RX_DATA | TWAI_ALERT_TX_FAILED | TWAI_ALERT_RX_QUEUE_FULL; //!< Sets which alerts to enable for TWAI controller
 
 // Task Counters - temporary, for debugging
@@ -358,6 +361,11 @@ void get_mode_task(void *pvParameters)
         if(xQueueReceive(gpio_evt_queue, &io_num, portMAX_DELAY)) {
             printf("GPIO[%" PRIu32 "] intr, val: %i\n", io_num, gpio_get_level(GPIO_NUM_18));
             printf("GPIO[%" PRIu32 "] intr, val: %i\n", io_num, gpio_get_level(GPIO_NUM_19));
+            int msb = gpio_get_level(GPIO_NUM_19);
+            int lsb = gpio_get_level(GPIO_NUM_18);
+            int mode = (msb << 1) | lsb;
+            tc_mode = std::to_string(mode);
+            ESP_LOGD("MODE: ", "%i",mode); 
         }
     }
 }
@@ -901,6 +909,7 @@ void * iwasm_main(void *arg)
     RuntimeInitArgs init_args;
 
     uint32_t buffer_for_wasm = 0;
+    uint32_t buffer_for_wasm_mode = 0;
 
     /* configure memory allocation */
     memset(&init_args, 0, sizeof(RuntimeInitArgs));
@@ -975,6 +984,7 @@ void * iwasm_main(void *arg)
         goto fail;
     }
 
+    // Link buffer for Messages
     ESP_LOGI(TAG_WASM, "Malloc buffer in wasm function");
     buffer_for_wasm = wasm_runtime_module_malloc(wasm_module_inst, 100, (void **)&wasm_buffer);
     if (buffer_for_wasm == 0) {
@@ -1006,6 +1016,39 @@ void * iwasm_main(void *arg)
         goto fail;
     }
 
+    // Link buffer for mode
+    ESP_LOGI(TAG_WASM, "Malloc buffer in wasm function");
+    buffer_for_wasm_mode = wasm_runtime_module_malloc(wasm_module_inst, 100, (void **)&wasm_mode_buffer);
+    if (buffer_for_wasm_mode == 0) {
+        ESP_LOGI(TAG_WASM, "Malloc failed");
+        goto fail;
+    }
+    uint32 argv_mode[2];
+    argv_mode[0] = buffer_for_wasm_mode;     /* pass the buffer address for WASM space */
+    argv_mode[1] = MODE_BUFFER_SIZE;                 /* the size of buffer */
+    ESP_LOGI(TAG_WASM, "Call wasm function");
+    /* it is runtime embedder's responsibility to release the memory,
+       unless the WASM app will free the passed pointer in its code */
+    
+    if (!(func = wasm_runtime_lookup_function(wasm_module_inst, "link_mode_buffer",
+                                               NULL))) {
+        ESP_LOGW(TAG_WASM,
+            "The wasm function link_mode_buffer wasm function is not found.\n");
+        goto fail;
+    }
+
+    if (wasm_runtime_call_wasm(exec_env, func, 2, argv_mode)) {
+        ESP_LOGI(TAG_WASM,"Native finished calling wasm function: link_mode_buffer, "
+               "returned a formatted string: %s\n",
+               wasm_mode_buffer);
+    }
+    else {
+        ESP_LOGW(TAG_WASM,"call wasm function link_msg_buffer failed. error: %s\n",
+               wasm_runtime_get_exception(wasm_module_inst));
+        goto fail;
+    }
+
+
     // Task Loop
     while (true){
         ESP_LOGV(TAG_WASM, "run main() of the application");
@@ -1013,7 +1056,8 @@ void * iwasm_main(void *arg)
         NMEA_msg msg;
         if (xQueueReceive(rx_queue, &msg, (100 / portTICK_PERIOD_MS) == 1)){
             std::string str_msg = nmea_to_string(msg);
-            strncpy(wasm_buffer, str_msg.c_str(), str_msg.size());
+            strncpy(wasm_buffer, str_msg.c_str(), str_msg.size()); // fill message buffer
+            strncpy(wasm_mode_buffer, tc_mode.c_str(), tc_mode.size()); // fill mode buffer            
             ret = app_instance_main(wasm_module_inst);  //Call the main function 
             assert(!ret);
         } else{
@@ -1028,7 +1072,8 @@ void * iwasm_main(void *arg)
     }
 
 
-    wasm_runtime_module_free(wasm_module_inst, buffer_for_wasm);
+    //wasm_runtime_module_free(wasm_module_inst, buffer_for_wasm);
+    //wasm_runtime_module_free(wasm_module_inst, buffer_for_wasm_mode);
     
     /* destroy the module instance */
     ESP_LOGI(TAG_WASM, "Deinstantiate WASM runtime");
@@ -1040,6 +1085,10 @@ fail:
     if (wasm_module_inst) {
         if (buffer_for_wasm){
             wasm_runtime_module_free(wasm_module_inst, buffer_for_wasm);}
+        if (buffer_for_wasm_mode)
+        {
+           wasm_runtime_module_free(wasm_module_inst, buffer_for_wasm_mode); 
+        }
         wasm_runtime_deinstantiate(wasm_module_inst);
     }
     if (wasm_module){
@@ -1049,6 +1098,9 @@ fail:
     }
     if (wasm_buffer)
         BH_FREE(wasm_buffer);
+    if (wasm_mode_buffer)
+        BH_FREE(wasm_mode_buffer);
+
 
     /* destroy runtime environment */
     ESP_LOGI(TAG_WASM, "Destroy WASM runtime");
