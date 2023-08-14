@@ -65,6 +65,18 @@
 #define MCP2_CS             17
 #define MCP2_INT            11
 
+#define ESP_INTR_FLAG_DEFAULT 0
+/*
+ * Let's say, GPIO_OUTPUT_IO_0=18, GPIO_OUTPUT_IO_1=19
+ * In binary representation,
+ * 1ULL<<GPIO_OUTPUT_IO_0 is equal to 0000000000000000000001000000000000000000 and
+ * 1ULL<<GPIO_OUTPUT_IO_1 is equal to 0000000000000000000010000000000000000000
+ * GPIO_OUTPUT_PIN_SEL                0000000000000000000011000000000000000000
+ * */
+#define GPIO_INPUT_IO_0 GPIO_NUM_18
+#define GPIO_INPUT_IO_1 GPIO_NUM_19
+#define GPIO_INPUT_PIN_SEL  ((1ULL<<GPIO_INPUT_IO_0) | (1ULL<<GPIO_INPUT_IO_1))
+
 #define PRINT_STATS // Uncomment to print task stats periodically
 
 // Tag for ESP logging
@@ -91,11 +103,13 @@ static TaskHandle_t C1_receive_task_handle = NULL;
 static TaskHandle_t C2_send_task_handle = NULL;
 static TaskHandle_t C2_receive_task_handle = NULL;
 static TaskHandle_t stats_task_handle = NULL;
+static TaskHandle_t modes_task_handle = NULL;
 
 QueueHandle_t C0_tx_queue; //!< Queue that stores messages to be sent out on controller 0
 QueueHandle_t C1_tx_queue; //!< Queue that stores messages to be sent out on controller 1
 QueueHandle_t C2_tx_queue; //!< Queue that stores messages to be sent out on controller 2
 QueueHandle_t rx_queue; //!< Queue that stores all messages received on all controllers
+static QueueHandle_t gpio_evt_queue = NULL; //!< Queue that stores GPIO events from ISR for changing t connector mode
 
 SemaphoreHandle_t x_sem_mcp1; //!< Semaphore handle for MCP1
 SemaphoreHandle_t x_sem_mcp2; //!< Semaphore handle for MCP2
@@ -283,7 +297,70 @@ void uint8ArrayToCharrArray(uint8_t (&data_uint8_arr)[MAX_DATA_LENGTH_BTYES], un
 }
 
 //---------------------------------------------------------------------------------------------------------------------------------------------
+/**
+ * @brief Interrupt Handler
+*/
+static void IRAM_ATTR gpio_isr_handler(void* arg)
+{
+    uint32_t gpio_num = (uint32_t) arg;
+    xQueueSendFromISR(gpio_evt_queue, &gpio_num, NULL);
+}
+/**
+ * @brief Configures GPIO used to read mode settings from the Raspberry Pi
+ * 
+*/
+void configTConnectorModes()
+{
+    //zero-initialize the config structure.
+    gpio_config_t io_conf = {};
+    //disable interrupt
+    io_conf.intr_type = GPIO_INTR_ANYEDGE; // Trigger on both rising and falling edge
+    //set as output mode
+    io_conf.mode = GPIO_MODE_INPUT;
+    //bit mask of the pins that you want to set,e.g.GPIO18/19
+    io_conf.pin_bit_mask = GPIO_INPUT_PIN_SEL;
+    //disable pull-down mode
+    io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
+    //disable pull-up mode
+    io_conf.pull_up_en = GPIO_PULLUP_DISABLE ;
+    //configure GPIO with the given settings
+    gpio_config(&io_conf);
 
+    //create a queue to handle gpio event from isr
+    gpio_evt_queue = xQueueCreate(10, sizeof(uint32_t));
+
+    //install gpio isr service
+    gpio_install_isr_service(ESP_INTR_FLAG_DEFAULT);
+    //hook isr handler for specific gpio pin
+    gpio_isr_handler_add(GPIO_INPUT_IO_0, gpio_isr_handler, (void*) GPIO_INPUT_IO_0);
+    //hook isr handler for specific gpio pin
+    gpio_isr_handler_add(GPIO_INPUT_IO_1, gpio_isr_handler, (void*) GPIO_INPUT_IO_1);
+
+    //remove isr handler for gpio number.
+    gpio_isr_handler_remove(GPIO_INPUT_IO_0);
+    //hook isr handler for specific gpio pin again
+    gpio_isr_handler_add(GPIO_INPUT_IO_0, gpio_isr_handler, (void*) GPIO_INPUT_IO_0);
+}
+/**
+ * @brief Task to get the Controller Mode set by the Raspberry Pi
+ * 
+ * 00 - Off
+ * 01 - Passive
+ * 10 - GPS Attack
+ * 11 - Extra (TBD)
+ * 
+*/
+void get_mode_task(void *pvParameters)
+{
+    configTConnectorModes();
+    uint32_t io_num;
+    for(;;) {
+        if(xQueueReceive(gpio_evt_queue, &io_num, portMAX_DELAY)) {
+            printf("GPIO[%" PRIu32 "] intr, val: %i\n", io_num, gpio_get_level(GPIO_NUM_18));
+            printf("GPIO[%" PRIu32 "] intr, val: %i\n", io_num, gpio_get_level(GPIO_NUM_19));
+        }
+    }
+}
 /**
  * \brief Sends a message
  * 
@@ -1015,7 +1092,23 @@ extern "C" int app_main(void)
         goto err_out;
     }
 #endif
-
+    /* T Connector Modes Task*/
+    printf( "create task");
+    xTaskCreatePinnedToCore(
+        &get_mode_task,            // Pointer to the task entry function.
+        "get_mode_task",           // A descriptive name for the task for debugging.
+        4096,                 // size of the task stack in bytes.
+        NULL,                 // Optional pointer to pvParameters
+        STATS_TASK_PRIO, // priority at which the task should run
+        &modes_task_handle,      // Optional pass back task handle
+        1
+    );
+    if (modes_task_handle == NULL)
+    {
+        printf("Unable to create task.");
+        result = ESP_ERR_NO_MEM;
+        goto err_out;
+    }
     /* Controller 0 Sending task */
     ESP_LOGV(TAG_WASM, "create task");
     xTaskCreatePinnedToCore(
