@@ -50,7 +50,7 @@
 #define PTHREAD_STACK_SIZE              4096
 #define MAX_DATA_LENGTH_BTYES           223
 #define BUFFER_SIZE                     (10 + 223*2) //10 bytes for id, 223*2 bytes for data
-#define MY_ESP_LOG_LEVEL                ESP_LOG_DEBUG // the log level for this file
+#define MY_ESP_LOG_LEVEL                ESP_LOG_INFO // the log level for this file
 
 #define STATS_TASK_PRIO     tskIDLE_PRIORITY //3
 #define STATS_TICKS         pdMS_TO_TICKS(1000)
@@ -494,44 +494,7 @@ void GetStatus(const char* TAG){
     //Duration of the app_instance_main for the wasm pthread
     ESP_LOGI(TAG, "Duration of wasm task (ms): %f",wasm_main_duration/1000000);
 }
-/**
- * @brief Retrieves twai status and alerts
- * 
- * Used to display information regarding queue's filling up, and how many messages have been sent/received.
- * 
- * @param[in] TAG
-*/
-void spiStatus(const char* TAG){
-    uint32_t alerts = 0;
-    C0.ReadAlerts(alerts, pdMS_TO_TICKS(1));
-    if (alerts & TWAI_ALERT_RX_QUEUE_FULL){
-        ESP_LOGW(TAG, "TWAI rx queue full");
-    } 
-    twai_status_info_t status;
-    C0.GetTwaiStatus(status);
-    ESP_LOGI(TAG, "Msgs queued for transmission: %" PRIu32 " Unread messages in rx queue: %" PRIu32, status.msgs_to_tx, status.msgs_to_rx);
-    ESP_LOGI(TAG, "Msgs lost due to RX FIFO overrun: %" PRIu32 "", status.rx_overrun_count);
-    ESP_LOGI(TAG, "Msgs lost due to full RX queue: %" PRIu32 "", status.rx_missed_count);
-    ESP_LOGI(TAG, "Messages Read: %d, Messages Sent %d", read_msg_count, send_msg_count);
-    UBaseType_t msgs_in_rx_q = uxQueueMessagesWaiting(rx_queue);
-    ESP_LOGI(TAG, "Received Messages queue size: %d \n", msgs_in_rx_q);
-    UBaseType_t msgs_in_q = uxQueueMessagesWaiting(C0_tx_queue);
-    ESP_LOGI(TAG, "Controller 0 send queue size: %d \n", msgs_in_q);
 
-    // Task Counters
-    ESP_LOGI(TAG, "TWAI RX task count: %d", C0_rx_task_count);
-    ESP_LOGI(TAG, "TWAI TX task count: %d", C0_tx_task_count);
-    ESP_LOGI(TAG, "MCP1 RX task count: %d", C1_rx_task_count);
-    ESP_LOGI(TAG, "MCP1 TX task count: %d", C1_tx_task_count);
-    ESP_LOGI(TAG, "MCP2 RX task count: %d", C2_rx_task_count);
-    ESP_LOGI(TAG, "MCP2 TX task count: %d", C2_tx_task_count);
-    ESP_LOGI(TAG, "Wasm pthread count: %d", wasm_pthread_count);
-    ESP_LOGI(TAG, "Stats task count: %d", stats_task_count);
-
-
-    //Duration of the app_instance_main for the wasm pthread
-    ESP_LOGI(TAG, "Duration of wasm task (ms): %f",wasm_main_duration/1000000);
-}
 /**
  * @brief Optional FreeRTOS task for printing status messages for debugging 
  * 
@@ -548,8 +511,7 @@ static void stats_task(void *arg)
         } else {
             printf("Error getting real time stats\n");
         }
-        //GetStatus(TAG_STATUS);
-        spiStatus(TAG_STATUS);
+        GetStatus(TAG_STATUS);
         stats_task_count++;
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
