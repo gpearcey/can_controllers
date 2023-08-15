@@ -49,7 +49,8 @@
 #define NATIVE_HEAP_SIZE                (32*1024)
 #define PTHREAD_STACK_SIZE              4096
 #define MAX_DATA_LENGTH_BTYES           223
-#define BUFFER_SIZE                     (10 + 223*2) //10 bytes for id, 223*2 bytes for data
+#define MSG_BUFFER_SIZE                     (10 + 223*2) //10 bytes for id, 223*2 bytes for data
+#define MODE_BUFFER_SIZE                1 // 1 byte to store modes 0 -> 3
 #define MY_ESP_LOG_LEVEL                ESP_LOG_INFO // the log level for this file
 
 #define STATS_TASK_PRIO     tskIDLE_PRIORITY //3
@@ -64,6 +65,18 @@
 #define MCP1_INT            10
 #define MCP2_CS             17
 #define MCP2_INT            11
+
+#define ESP_INTR_FLAG_DEFAULT 0
+/*
+ * GPIO_OUTPUT_IO_0=18, GPIO_OUTPUT_IO_1=19
+ * In binary representation,
+ * 1ULL<<GPIO_OUTPUT_IO_0 is equal to 0000000000000000000001000000000000000000 and
+ * 1ULL<<GPIO_OUTPUT_IO_1 is equal to 0000000000000000000010000000000000000000
+ * GPIO_OUTPUT_PIN_SEL                0000000000000000000011000000000000000000
+ * */
+#define MODE_SETTING_PIN_LSB GPIO_NUM_18
+#define MODE_SETTING_PIN_MSB GPIO_NUM_19
+#define MODE_SETTING_MASK  ((1ULL<<MODE_SETTING_PIN_LSB) | (1ULL<<MODE_SETTING_PIN_MSB))
 
 #define PRINT_STATS // Uncomment to print task stats periodically
 
@@ -91,11 +104,13 @@ static TaskHandle_t C1_receive_task_handle = NULL;
 static TaskHandle_t C2_send_task_handle = NULL;
 static TaskHandle_t C2_receive_task_handle = NULL;
 static TaskHandle_t stats_task_handle = NULL;
+static TaskHandle_t modes_task_handle = NULL;
 
 QueueHandle_t C0_tx_queue; //!< Queue that stores messages to be sent out on controller 0
 QueueHandle_t C1_tx_queue; //!< Queue that stores messages to be sent out on controller 1
 QueueHandle_t C2_tx_queue; //!< Queue that stores messages to be sent out on controller 2
 QueueHandle_t rx_queue; //!< Queue that stores all messages received on all controllers
+static QueueHandle_t gpio_evt_queue = NULL; //!< Queue that stores GPIO events from ISR for changing t connector mode
 
 SemaphoreHandle_t x_sem_mcp1; //!< Semaphore handle for MCP1
 SemaphoreHandle_t x_sem_mcp2; //!< Semaphore handle for MCP2
@@ -124,8 +139,10 @@ void uintArrToCharrArray(uint8_t (&data_uint8_arr)[MAX_DATA_LENGTH_BTYES], unsig
 // Variables
 //-----------------------------------------------------------------------------------------------------------------------------
 char * wasm_buffer = NULL;  //!< buffer allocated for wasm app, used to hold received messages so app can access them
+char * wasm_mode_buffer = NULL;  //!< buffer allocated for wasm app, used to hold current t connector mode set by Raspberry Pi
 int read_msg_count = 0; //!< Used to track messages read
 int send_msg_count = 0; //!< Used to track messages sent
+std::string tc_mode = "1"; //!< Contains the T Connector mode-> 0 - OFF, 1 - PASSIVE, 2 - GPS_ATTACK, 3 - TBD
 uint32_t alerts_to_enable = TWAI_ALERT_RX_DATA | TWAI_ALERT_TX_FAILED | TWAI_ALERT_RX_QUEUE_FULL; //!< Sets which alerts to enable for TWAI controller
 
 // Task Counters - temporary, for debugging
@@ -283,7 +300,70 @@ void uint8ArrayToCharrArray(uint8_t (&data_uint8_arr)[MAX_DATA_LENGTH_BTYES], un
 }
 
 //---------------------------------------------------------------------------------------------------------------------------------------------
+/**
+ * @brief Interrupt Handler for gpio that determine T Connector modes
+*/
+static void IRAM_ATTR gpio_isr_handler(void* arg)
+{
+    uint32_t gpio_num = (uint32_t) arg;
+    xQueueSendFromISR(gpio_evt_queue, &gpio_num, NULL);
+}
+/**
+ * @brief Configures GPIO used to read mode settings from the Raspberry Pi
+ * 
+*/
+void configTConnectorModes()
+{
+    //zero-initialize the config structure.
+    gpio_config_t io_conf = {};
+    //disable interrupt
+    io_conf.intr_type = GPIO_INTR_ANYEDGE; // Trigger on both rising and falling edge
+    //set as output mode
+    io_conf.mode = GPIO_MODE_INPUT;
+    //bit mask of the pins that you want to set,e.g.GPIO18/19
+    io_conf.pin_bit_mask = MODE_SETTING_MASK;
+    //disable pull-down mode
+    io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
+    //disable pull-up mode
+    io_conf.pull_up_en = GPIO_PULLUP_DISABLE ;
+    //configure GPIO with the given settings
+    gpio_config(&io_conf);
 
+    //create a queue to handle gpio event from isr
+    gpio_evt_queue = xQueueCreate(10, sizeof(uint32_t));
+
+    //install gpio isr service
+    gpio_install_isr_service(ESP_INTR_FLAG_DEFAULT);
+    //hook isr handler for specific gpio pin
+    gpio_isr_handler_add(MODE_SETTING_PIN_LSB, gpio_isr_handler, (void*) MODE_SETTING_PIN_LSB);
+    //hook isr handler for specific gpio pin
+    gpio_isr_handler_add(MODE_SETTING_PIN_MSB, gpio_isr_handler, (void*) MODE_SETTING_PIN_MSB);
+}
+/**
+ * @brief Task to get the Controller Mode set by the Raspberry Pi
+ * 
+ * 00 - Off
+ * 01 - Passive
+ * 10 - GPS Attack
+ * 11 - Extra (TBD)
+ * 
+*/
+void get_mode_task(void *pvParameters)
+{
+    configTConnectorModes();
+    uint32_t io_num;
+    for(;;) {
+        if(xQueueReceive(gpio_evt_queue, &io_num, portMAX_DELAY)) {
+            ESP_LOGD("MODE: ","GPIO[%" PRIu32 "] intr, val: %i\n", io_num, gpio_get_level(GPIO_NUM_18));
+            ESP_LOGD("MODE: ","GPIO[%" PRIu32 "] intr, val: %i\n", io_num, gpio_get_level(GPIO_NUM_19));
+            int msb = gpio_get_level(GPIO_NUM_19);
+            int lsb = gpio_get_level(GPIO_NUM_18);
+            int mode = (msb << 1) | lsb;
+            tc_mode = std::to_string(mode);
+            ESP_LOGD("MODE: ", "%i",mode); 
+        }
+    }
+}
 /**
  * \brief Sends a message
  * 
@@ -824,6 +904,7 @@ void * iwasm_main(void *arg)
     RuntimeInitArgs init_args;
 
     uint32_t buffer_for_wasm = 0;
+    uint32_t buffer_for_wasm_mode = 0;
 
     /* configure memory allocation */
     memset(&init_args, 0, sizeof(RuntimeInitArgs));
@@ -898,6 +979,7 @@ void * iwasm_main(void *arg)
         goto fail;
     }
 
+    // Link buffer for Messages
     ESP_LOGI(TAG_WASM, "Malloc buffer in wasm function");
     buffer_for_wasm = wasm_runtime_module_malloc(wasm_module_inst, 100, (void **)&wasm_buffer);
     if (buffer_for_wasm == 0) {
@@ -906,7 +988,7 @@ void * iwasm_main(void *arg)
     }
     uint32 argv[2];
     argv[0] = buffer_for_wasm;     /* pass the buffer address for WASM space */
-    argv[1] = BUFFER_SIZE;                 /* the size of buffer */
+    argv[1] = MSG_BUFFER_SIZE;                 /* the size of buffer */
     ESP_LOGI(TAG_WASM, "Call wasm function");
     /* it is runtime embedder's responsibility to release the memory,
        unless the WASM app will free the passed pointer in its code */
@@ -929,6 +1011,39 @@ void * iwasm_main(void *arg)
         goto fail;
     }
 
+    // Link buffer for mode
+    ESP_LOGI(TAG_WASM, "Malloc buffer in wasm function");
+    buffer_for_wasm_mode = wasm_runtime_module_malloc(wasm_module_inst, 100, (void **)&wasm_mode_buffer);
+    if (buffer_for_wasm_mode == 0) {
+        ESP_LOGI(TAG_WASM, "Malloc failed");
+        goto fail;
+    }
+    uint32 argv_mode[2];
+    argv_mode[0] = buffer_for_wasm_mode;     /* pass the buffer address for WASM space */
+    argv_mode[1] = MODE_BUFFER_SIZE;                 /* the size of buffer */
+    ESP_LOGI(TAG_WASM, "Call wasm function");
+    /* it is runtime embedder's responsibility to release the memory,
+       unless the WASM app will free the passed pointer in its code */
+    
+    if (!(func = wasm_runtime_lookup_function(wasm_module_inst, "link_mode_buffer",
+                                               NULL))) {
+        ESP_LOGW(TAG_WASM,
+            "The wasm function link_mode_buffer wasm function is not found.\n");
+        goto fail;
+    }
+
+    if (wasm_runtime_call_wasm(exec_env, func, 2, argv_mode)) {
+        ESP_LOGI(TAG_WASM,"Native finished calling wasm function: link_mode_buffer, "
+               "returned a formatted string: %s\n",
+               wasm_mode_buffer);
+    }
+    else {
+        ESP_LOGW(TAG_WASM,"call wasm function link_msg_buffer failed. error: %s\n",
+               wasm_runtime_get_exception(wasm_module_inst));
+        goto fail;
+    }
+
+
     // Task Loop
     while (true){
         ESP_LOGV(TAG_WASM, "run main() of the application");
@@ -936,7 +1051,8 @@ void * iwasm_main(void *arg)
         NMEA_msg msg;
         if (xQueueReceive(rx_queue, &msg, (100 / portTICK_PERIOD_MS) == 1)){
             std::string str_msg = nmea_to_string(msg);
-            strncpy(wasm_buffer, str_msg.c_str(), str_msg.size());
+            strncpy(wasm_buffer, str_msg.c_str(), str_msg.size()); // fill message buffer
+            strncpy(wasm_mode_buffer, tc_mode.c_str(), tc_mode.size()); // fill mode buffer            
             ret = app_instance_main(wasm_module_inst);  //Call the main function 
             assert(!ret);
         } else{
@@ -951,7 +1067,8 @@ void * iwasm_main(void *arg)
     }
 
 
-    wasm_runtime_module_free(wasm_module_inst, buffer_for_wasm);
+    //wasm_runtime_module_free(wasm_module_inst, buffer_for_wasm);
+    //wasm_runtime_module_free(wasm_module_inst, buffer_for_wasm_mode);
     
     /* destroy the module instance */
     ESP_LOGI(TAG_WASM, "Deinstantiate WASM runtime");
@@ -963,6 +1080,10 @@ fail:
     if (wasm_module_inst) {
         if (buffer_for_wasm){
             wasm_runtime_module_free(wasm_module_inst, buffer_for_wasm);}
+        if (buffer_for_wasm_mode)
+        {
+           wasm_runtime_module_free(wasm_module_inst, buffer_for_wasm_mode); 
+        }
         wasm_runtime_deinstantiate(wasm_module_inst);
     }
     if (wasm_module){
@@ -972,6 +1093,9 @@ fail:
     }
     if (wasm_buffer)
         BH_FREE(wasm_buffer);
+    if (wasm_mode_buffer)
+        BH_FREE(wasm_mode_buffer);
+
 
     /* destroy runtime environment */
     ESP_LOGI(TAG_WASM, "Destroy WASM runtime");
@@ -1015,7 +1139,23 @@ extern "C" int app_main(void)
         goto err_out;
     }
 #endif
-
+    /* T Connector Modes Task*/
+    printf( "create task");
+    xTaskCreatePinnedToCore(
+        &get_mode_task,            // Pointer to the task entry function.
+        "get_mode_task",           // A descriptive name for the task for debugging.
+        4096,                 // size of the task stack in bytes.
+        NULL,                 // Optional pointer to pvParameters
+        STATS_TASK_PRIO, // priority at which the task should run
+        &modes_task_handle,      // Optional pass back task handle
+        1
+    );
+    if (modes_task_handle == NULL)
+    {
+        printf("Unable to create task.");
+        result = ESP_ERR_NO_MEM;
+        goto err_out;
+    }
     /* Controller 0 Sending task */
     ESP_LOGV(TAG_WASM, "create task");
     xTaskCreatePinnedToCore(
