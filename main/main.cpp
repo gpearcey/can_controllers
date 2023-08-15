@@ -49,7 +49,7 @@
 #define NATIVE_HEAP_SIZE                (32*1024)
 #define PTHREAD_STACK_SIZE              4096
 #define MAX_DATA_LENGTH_BTYES           223
-#define BUFFER_SIZE                     (10 + 223*2) //10 bytes for id, 223*2 bytes for data
+#define MSG_BUFFER_SIZE                     (10 + 223*2) //10 bytes for id, 223*2 bytes for data
 #define MODE_BUFFER_SIZE                1 // 1 byte to store modes 0 -> 3
 #define MY_ESP_LOG_LEVEL                ESP_LOG_INFO // the log level for this file
 
@@ -68,7 +68,7 @@
 
 #define ESP_INTR_FLAG_DEFAULT 0
 /*
- * Let's say, GPIO_OUTPUT_IO_0=18, GPIO_OUTPUT_IO_1=19
+ * GPIO_OUTPUT_IO_0=18, GPIO_OUTPUT_IO_1=19
  * In binary representation,
  * 1ULL<<GPIO_OUTPUT_IO_0 is equal to 0000000000000000000001000000000000000000 and
  * 1ULL<<GPIO_OUTPUT_IO_1 is equal to 0000000000000000000010000000000000000000
@@ -76,7 +76,7 @@
  * */
 #define GPIO_INPUT_IO_0 GPIO_NUM_18
 #define GPIO_INPUT_IO_1 GPIO_NUM_19
-#define GPIO_INPUT_PIN_SEL  ((1ULL<<GPIO_INPUT_IO_0) | (1ULL<<GPIO_INPUT_IO_1))
+#define MODE_SETTING_PIN  ((1ULL<<GPIO_INPUT_IO_0) | (1ULL<<GPIO_INPUT_IO_1))
 
 #define PRINT_STATS // Uncomment to print task stats periodically
 
@@ -301,7 +301,7 @@ void uint8ArrayToCharrArray(uint8_t (&data_uint8_arr)[MAX_DATA_LENGTH_BTYES], un
 
 //---------------------------------------------------------------------------------------------------------------------------------------------
 /**
- * @brief Interrupt Handler
+ * @brief Interrupt Handler for gpio that determine T Connector modes
 */
 static void IRAM_ATTR gpio_isr_handler(void* arg)
 {
@@ -321,7 +321,7 @@ void configTConnectorModes()
     //set as output mode
     io_conf.mode = GPIO_MODE_INPUT;
     //bit mask of the pins that you want to set,e.g.GPIO18/19
-    io_conf.pin_bit_mask = GPIO_INPUT_PIN_SEL;
+    io_conf.pin_bit_mask = MODE_SETTING_PIN;
     //disable pull-down mode
     io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
     //disable pull-up mode
@@ -359,8 +359,8 @@ void get_mode_task(void *pvParameters)
     uint32_t io_num;
     for(;;) {
         if(xQueueReceive(gpio_evt_queue, &io_num, portMAX_DELAY)) {
-            printf("GPIO[%" PRIu32 "] intr, val: %i\n", io_num, gpio_get_level(GPIO_NUM_18));
-            printf("GPIO[%" PRIu32 "] intr, val: %i\n", io_num, gpio_get_level(GPIO_NUM_19));
+            ESP_LOGD("MODE: ","GPIO[%" PRIu32 "] intr, val: %i\n", io_num, gpio_get_level(GPIO_NUM_18));
+            ESP_LOGD("MODE: ","GPIO[%" PRIu32 "] intr, val: %i\n", io_num, gpio_get_level(GPIO_NUM_19));
             int msb = gpio_get_level(GPIO_NUM_19);
             int lsb = gpio_get_level(GPIO_NUM_18);
             int mode = (msb << 1) | lsb;
@@ -993,7 +993,7 @@ void * iwasm_main(void *arg)
     }
     uint32 argv[2];
     argv[0] = buffer_for_wasm;     /* pass the buffer address for WASM space */
-    argv[1] = BUFFER_SIZE;                 /* the size of buffer */
+    argv[1] = MSG_BUFFER_SIZE;                 /* the size of buffer */
     ESP_LOGI(TAG_WASM, "Call wasm function");
     /* it is runtime embedder's responsibility to release the memory,
        unless the WASM app will free the passed pointer in its code */
