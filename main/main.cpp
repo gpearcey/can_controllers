@@ -74,9 +74,9 @@
  * 1ULL<<GPIO_OUTPUT_IO_1 is equal to 0000000000000000000010000000000000000000
  * GPIO_OUTPUT_PIN_SEL                0000000000000000000011000000000000000000
  * */
-#define GPIO_INPUT_IO_0 GPIO_NUM_18
-#define GPIO_INPUT_IO_1 GPIO_NUM_19
-#define MODE_SETTING_PIN  ((1ULL<<GPIO_INPUT_IO_0) | (1ULL<<GPIO_INPUT_IO_1))
+#define MODE_SETTING_PIN_LSB GPIO_NUM_18
+#define MODE_SETTING_PIN_MSB GPIO_NUM_19
+#define MODE_SETTING_MASK  ((1ULL<<MODE_SETTING_PIN_LSB) | (1ULL<<MODE_SETTING_PIN_MSB))
 
 #define PRINT_STATS // Uncomment to print task stats periodically
 
@@ -321,7 +321,7 @@ void configTConnectorModes()
     //set as output mode
     io_conf.mode = GPIO_MODE_INPUT;
     //bit mask of the pins that you want to set,e.g.GPIO18/19
-    io_conf.pin_bit_mask = MODE_SETTING_PIN;
+    io_conf.pin_bit_mask = MODE_SETTING_MASK;
     //disable pull-down mode
     io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
     //disable pull-up mode
@@ -335,14 +335,9 @@ void configTConnectorModes()
     //install gpio isr service
     gpio_install_isr_service(ESP_INTR_FLAG_DEFAULT);
     //hook isr handler for specific gpio pin
-    gpio_isr_handler_add(GPIO_INPUT_IO_0, gpio_isr_handler, (void*) GPIO_INPUT_IO_0);
+    gpio_isr_handler_add(MODE_SETTING_PIN_LSB, gpio_isr_handler, (void*) MODE_SETTING_PIN_LSB);
     //hook isr handler for specific gpio pin
-    gpio_isr_handler_add(GPIO_INPUT_IO_1, gpio_isr_handler, (void*) GPIO_INPUT_IO_1);
-
-    //remove isr handler for gpio number.
-    gpio_isr_handler_remove(GPIO_INPUT_IO_0);
-    //hook isr handler for specific gpio pin again
-    gpio_isr_handler_add(GPIO_INPUT_IO_0, gpio_isr_handler, (void*) GPIO_INPUT_IO_0);
+    gpio_isr_handler_add(MODE_SETTING_PIN_MSB, gpio_isr_handler, (void*) MODE_SETTING_PIN_MSB);
 }
 /**
  * @brief Task to get the Controller Mode set by the Raspberry Pi
