@@ -412,7 +412,7 @@ bool SendN2kMsg(NMEA_msg msg, int controller_num) {
       C2_MsgSentCount++;
       send_msg_count++;
     } else {
-      ESP_LOGW(TAG_MCP2, "failed to send a message \n");
+      //ESP_LOGW(TAG_MCP2, "failed to send a message \n");
       C2_MsgFailCount++;
     }
   }
@@ -625,9 +625,7 @@ void C0_receive_task(void *pvParameters){
     {
         C0.CAN_read_frame(); // retrieves available messages - for TWAI controller only
         C0.ParseMessages(); // Calls message handle whenever a message is available
-        C0_rx_task_count++;
-
-        vTaskDelay(10 / portTICK_PERIOD_MS);           
+        C0_rx_task_count++;        
     }
     vTaskDelete(NULL); // should never get here...
 }
@@ -730,8 +728,7 @@ void C1_send_task(void *pvParameters)
                 
                 // We have finished accessing the shared resource.  Release the semaphore.
                 xSemaphoreGive( x_sem_mcp1 );
-            }
-            vTaskDelay(10);          
+            }        
             
         }
         ESP_LOGD(TAG_TWAI, "Send task called");
@@ -807,8 +804,7 @@ void C2_send_task(void *pvParameters)
 
                 SendN2kMsg(msg, C2_NUM);            
                 xSemaphoreGive( x_sem_mcp2 ); // We have finished accessing the shared resource.  Release the semaphore.
-            }
-            vTaskDelay(10);          
+            }        
             
         }
         ESP_LOGD(TAG_TWAI, "Send task called");
