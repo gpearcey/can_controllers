@@ -1,5 +1,4 @@
 var searchData=
 [
-  ['printint32_34',['PrintInt32',['../main_8cpp.html#af074f4615d09245f6b9582f613e1e570',1,'main.cpp']]],
-  ['printstr_35',['PrintStr',['../main_8cpp.html#a54c259f26c52ff03f9ab1d90ba06dadf',1,'main.cpp']]]
+  ['nmea_5fto_5fstring_54',['nmea_to_string',['../main_8cpp.html#ac9bab62089a524c93c540021803c6009',1,'main.cpp']]]
 ];

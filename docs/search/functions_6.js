@@ -1,4 +1,5 @@
 var searchData=
 [
-  ['sendn2kmsg_36',['SendN2kMsg',['../main_8cpp.html#a4e126984e064bcc2a55c7455c3e3f6c3',1,'main.cpp']]]
+  ['printint32_55',['PrintInt32',['../main_8cpp.html#af074f4615d09245f6b9582f613e1e570',1,'main.cpp']]],
+  ['printstr_56',['PrintStr',['../main_8cpp.html#a54c259f26c52ff03f9ab1d90ba06dadf',1,'main.cpp']]]
 ];

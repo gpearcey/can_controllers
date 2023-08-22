@@ -1,4 +1,4 @@
 var searchData=
 [
-  ['wasm_5fbuffer_43',['wasm_buffer',['../main_8cpp.html#a48df899df614d98285854d93c794813b',1,'main.cpp']]]
+  ['tc_5fmode_68',['tc_mode',['../main_8cpp.html#a187986ba8a1d16f9e9b906f79795cc10',1,'main.cpp']]]
 ];

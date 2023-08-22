@@ -67,6 +67,7 @@ $(function() {
 <div class="header">
   <div class="summary">
 <a href="#define-members">Macros</a> &#124;
+<a href="#enum-members">Enumerations</a> &#124;
 <a href="#func-members">Functions</a> &#124;
 <a href="#var-members">Variables</a>  </div>
   <div class="headertitle">
@@ -89,6 +90,7 @@ $(function() {
 <code>#include &lt;N2kMessages.h&gt;</code><br />
 <code>#include &quot;esp_err.h&quot;</code><br />
 <code>#include &quot;esp_pthread.h&quot;</code><br />
+<code>#include &lt;NMEA2000_mcp.h&gt;</code><br />
 <code>#include &quot;driver/gpio.h&quot;</code><br />
 <code>#include &quot;bi-inc/attr_container.h&quot;</code><br />
 <code>#include &quot;wasm_export.h&quot;</code><br />
@@ -99,13 +101,14 @@ $(function() {
 <code>#include &lt;string&gt;</code><br />
 <code>#include &lt;iomanip&gt;</code><br />
 <code>#include &lt;chrono&gt;</code><br />
+<code>#include &quot;driver/spi_master.h&quot;</code><br />
 <code>#include &quot;nmea_attack.h&quot;</code><br />
 </div><div class="textblock"><div class="dynheader">
 Include dependency graph for main.cpp:</div>
 <div class="dyncontent">
 <div class="center"><img src="main_8cpp__incl.png" border="0" usemap="#amain_2main_8cpp" alt=""/></div>
 <map name="amain_2main_8cpp" id="amain_2main_8cpp">
-<area shape="rect" title="Contains FreeRTOS tasks and a pthread for sending and receiving messages between WASM app and CAN con..." alt="" coords="1489,5,1607,32"/>
+<area shape="rect" title="Contains FreeRTOS tasks and a pthread for sending and receiving messages between WASM app and CAN con..." alt="" coords="1626,5,1745,32"/>
 <area shape="rect" title=" " alt="" coords="5,80,72,107"/>
 <area shape="rect" title=" " alt="" coords="97,80,167,107"/>
 <area shape="rect" title=" " alt="" coords="191,80,278,107"/>
@@ -119,17 +122,19 @@ Include dependency graph for main.cpp:</div>
 <area shape="rect" title=" " alt="" coords="1296,80,1421,107"/>
 <area shape="rect" title=" " alt="" coords="1446,80,1527,107"/>
 <area shape="rect" title=" " alt="" coords="1552,80,1667,107"/>
-<area shape="rect" title=" " alt="" coords="1691,80,1795,107"/>
-<area shape="rect" title=" " alt="" coords="1819,80,1983,107"/>
-<area shape="rect" title=" " alt="" coords="2008,80,2131,107"/>
-<area shape="rect" title=" " alt="" coords="2155,80,2269,107"/>
-<area shape="rect" title=" " alt="" coords="2293,80,2392,107"/>
-<area shape="rect" title=" " alt="" coords="2417,80,2530,107"/>
-<area shape="rect" title=" " alt="" coords="2554,80,2617,107"/>
-<area shape="rect" title=" " alt="" coords="2641,80,2700,107"/>
-<area shape="rect" title=" " alt="" coords="2724,80,2799,107"/>
-<area shape="rect" title=" " alt="" coords="2823,80,2889,107"/>
-<area shape="rect" href="nmea__attack_8h_source.html" title=" " alt="" coords="2914,80,3033,107"/>
+<area shape="rect" title=" " alt="" coords="1691,80,1831,107"/>
+<area shape="rect" title=" " alt="" coords="1856,80,1960,107"/>
+<area shape="rect" title=" " alt="" coords="1985,80,2149,107"/>
+<area shape="rect" title=" " alt="" coords="2173,80,2296,107"/>
+<area shape="rect" title=" " alt="" coords="2321,80,2434,107"/>
+<area shape="rect" title=" " alt="" coords="2459,80,2557,107"/>
+<area shape="rect" title=" " alt="" coords="2582,80,2695,107"/>
+<area shape="rect" title=" " alt="" coords="2719,80,2782,107"/>
+<area shape="rect" title=" " alt="" coords="2807,80,2865,107"/>
+<area shape="rect" title=" " alt="" coords="2889,80,2964,107"/>
+<area shape="rect" title=" " alt="" coords="2988,80,3055,107"/>
+<area shape="rect" title=" " alt="" coords="3079,80,3225,107"/>
+<area shape="rect" href="nmea__attack_8h_source.html" title=" " alt="" coords="3250,80,3369,107"/>
 <area shape="rect" title=" " alt="" coords="642,155,705,181"/>
 </map>
 </div>
@@ -150,9 +155,12 @@ Macros</h2></td></tr>
 <tr class="memitem:ae94f7f9b8282c3399a420a2fc7e90e6b"><td class="memItemLeft" align="right" valign="top"><a id="ae94f7f9b8282c3399a420a2fc7e90e6b"></a>
 #define&#160;</td><td class="memItemRight" valign="bottom"><b>MAX_DATA_LENGTH_BTYES</b>&#160;&#160;&#160;223</td></tr>
 <tr class="separator:ae94f7f9b8282c3399a420a2fc7e90e6b"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a6b20d41d6252e9871430c242cb1a56e7"><td class="memItemLeft" align="right" valign="top"><a id="a6b20d41d6252e9871430c242cb1a56e7"></a>
-#define&#160;</td><td class="memItemRight" valign="bottom"><b>BUFFER_SIZE</b>&#160;&#160;&#160;(10 + 223*2)</td></tr>
-<tr class="separator:a6b20d41d6252e9871430c242cb1a56e7"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a9bbe9671f01c94403aa9bde9b4da80cf"><td class="memItemLeft" align="right" valign="top"><a id="a9bbe9671f01c94403aa9bde9b4da80cf"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>MSG_BUFFER_SIZE</b>&#160;&#160;&#160;(10 + 223*2)</td></tr>
+<tr class="separator:a9bbe9671f01c94403aa9bde9b4da80cf"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a47a2c3686fd9fd97a8bd8ee63309ccf5"><td class="memItemLeft" align="right" valign="top"><a id="a47a2c3686fd9fd97a8bd8ee63309ccf5"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>MODE_BUFFER_SIZE</b>&#160;&#160;&#160;1</td></tr>
+<tr class="separator:a47a2c3686fd9fd97a8bd8ee63309ccf5"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a22033beafc73a18758e9d1a022d4a6ed"><td class="memItemLeft" align="right" valign="top"><a id="a22033beafc73a18758e9d1a022d4a6ed"></a>
 #define&#160;</td><td class="memItemRight" valign="bottom"><b>MY_ESP_LOG_LEVEL</b>&#160;&#160;&#160;ESP_LOG_INFO</td></tr>
 <tr class="separator:a22033beafc73a18758e9d1a022d4a6ed"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -171,12 +179,55 @@ Macros</h2></td></tr>
 <tr class="memitem:a0616225f8714515d1139d62323d2fb60"><td class="memItemLeft" align="right" valign="top"><a id="a0616225f8714515d1139d62323d2fb60"></a>
 #define&#160;</td><td class="memItemRight" valign="bottom"><b>RX_QUEUE_SIZE</b>&#160;&#160;&#160;100</td></tr>
 <tr class="separator:a0616225f8714515d1139d62323d2fb60"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a68540d4f41cfbaaf80c8deb9b3ba9e50"><td class="memItemLeft" align="right" valign="top"><a id="a68540d4f41cfbaaf80c8deb9b3ba9e50"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>MCP0_TX</b>&#160;&#160;&#160;GPIO_NUM_22</td></tr>
+<tr class="separator:a68540d4f41cfbaaf80c8deb9b3ba9e50"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a6acb051945ee6f8e13588ec42e74a1d5"><td class="memItemLeft" align="right" valign="top"><a id="a6acb051945ee6f8e13588ec42e74a1d5"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>MCP0_RX</b>&#160;&#160;&#160;GPIO_NUM_23</td></tr>
+<tr class="separator:a6acb051945ee6f8e13588ec42e74a1d5"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a7e6a8e3f8417d4b38a1c137dcec42556"><td class="memItemLeft" align="right" valign="top"><a id="a7e6a8e3f8417d4b38a1c137dcec42556"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>MCP1_CS</b>&#160;&#160;&#160;16</td></tr>
+<tr class="separator:a7e6a8e3f8417d4b38a1c137dcec42556"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:afd53ae51f1abfed44e6380cd0d722a10"><td class="memItemLeft" align="right" valign="top"><a id="afd53ae51f1abfed44e6380cd0d722a10"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>MCP1_INT</b>&#160;&#160;&#160;10</td></tr>
+<tr class="separator:afd53ae51f1abfed44e6380cd0d722a10"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aff2ae85d158d8d7299d667b2de7d2da8"><td class="memItemLeft" align="right" valign="top"><a id="aff2ae85d158d8d7299d667b2de7d2da8"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>MCP2_CS</b>&#160;&#160;&#160;17</td></tr>
+<tr class="separator:aff2ae85d158d8d7299d667b2de7d2da8"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a637daa0a5174c2a5050ae8814b592dfc"><td class="memItemLeft" align="right" valign="top"><a id="a637daa0a5174c2a5050ae8814b592dfc"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>MCP2_INT</b>&#160;&#160;&#160;11</td></tr>
+<tr class="separator:a637daa0a5174c2a5050ae8814b592dfc"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:af8baf7d9859733667317e58c0ff707d1"><td class="memItemLeft" align="right" valign="top"><a id="af8baf7d9859733667317e58c0ff707d1"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>ESP_INTR_FLAG_DEFAULT</b>&#160;&#160;&#160;0</td></tr>
+<tr class="separator:af8baf7d9859733667317e58c0ff707d1"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a79544961dee52013b4d00d4ee45b7c3a"><td class="memItemLeft" align="right" valign="top"><a id="a79544961dee52013b4d00d4ee45b7c3a"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>MODE_SETTING_PIN_LSB</b>&#160;&#160;&#160;GPIO_NUM_18</td></tr>
+<tr class="separator:a79544961dee52013b4d00d4ee45b7c3a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a8445e79368139cf2d0391a1a4bcb85ef"><td class="memItemLeft" align="right" valign="top"><a id="a8445e79368139cf2d0391a1a4bcb85ef"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>MODE_SETTING_PIN_MSB</b>&#160;&#160;&#160;GPIO_NUM_19</td></tr>
+<tr class="separator:a8445e79368139cf2d0391a1a4bcb85ef"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a9cf8451501b9fa8800b074caf6e388d7"><td class="memItemLeft" align="right" valign="top"><a id="a9cf8451501b9fa8800b074caf6e388d7"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>MODE_SETTING_MASK</b>&#160;&#160;&#160;((1ULL&lt;&lt;MODE_SETTING_PIN_LSB) | (1ULL&lt;&lt;MODE_SETTING_PIN_MSB))</td></tr>
+<tr class="separator:a9cf8451501b9fa8800b074caf6e388d7"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a57ffb6dc68dd96f1523d4c03aef3e201"><td class="memItemLeft" align="right" valign="top"><a id="a57ffb6dc68dd96f1523d4c03aef3e201"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>PRINT_STATS</b></td></tr>
+<tr class="separator:a57ffb6dc68dd96f1523d4c03aef3e201"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="enum-members"></a>
+Enumerations</h2></td></tr>
+<tr class="memitem:a4f507060bd39024b0a181c0abe34cbd7"><td class="memItemLeft" align="right" valign="top"><a id="a4f507060bd39024b0a181c0abe34cbd7"></a>enum &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="main_8cpp.html#a4f507060bd39024b0a181c0abe34cbd7">CONTROLLER</a> { <b>C0_NUM</b> = 0
+, <b>C1_NUM</b> = 1
+, <b>C2_NUM</b> = 2
+ }</td></tr>
+<tr class="memdesc:a4f507060bd39024b0a181c0abe34cbd7"><td class="mdescLeft">&#160;</td><td class="mdescRight">enum to store identifiers for each controller <br /></td></tr>
+<tr class="separator:a4f507060bd39024b0a181c0abe34cbd7"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="func-members"></a>
 Functions</h2></td></tr>
-<tr class="memitem:a69c2759945fc6b51ee00ca0d06d7ca9b"><td class="memItemLeft" align="right" valign="top">tNMEA2000_esp32c6&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="main_8cpp.html#a69c2759945fc6b51ee00ca0d06d7ca9b">NMEA2000</a> (GPIO_NUM_4, GPIO_NUM_5)</td></tr>
-<tr class="memdesc:a69c2759945fc6b51ee00ca0d06d7ca9b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Creates a NMEA2000 Object.  <a href="main_8cpp.html#a69c2759945fc6b51ee00ca0d06d7ca9b">More...</a><br /></td></tr>
-<tr class="separator:a69c2759945fc6b51ee00ca0d06d7ca9b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a660c3a94bb58d8c70dc72ff85cd28c5a"><td class="memItemLeft" align="right" valign="top"><a id="a660c3a94bb58d8c70dc72ff85cd28c5a"></a>
+tNMEA2000_esp32c6&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="main_8cpp.html#a660c3a94bb58d8c70dc72ff85cd28c5a">C0</a> (MCP0_TX, MCP0_RX)</td></tr>
+<tr class="memdesc:a660c3a94bb58d8c70dc72ff85cd28c5a"><td class="mdescLeft">&#160;</td><td class="mdescRight">Controller 0 -&gt; TWAI, (TX_PIN, RX_PIN) <br /></td></tr>
+<tr class="separator:a660c3a94bb58d8c70dc72ff85cd28c5a"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a955ad07241382211a8efdeaa2307443a"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="main_8cpp.html#a955ad07241382211a8efdeaa2307443a">HandleNMEA2000Msg</a> (const tN2kMsg &amp;N2kMsg)</td></tr>
 <tr class="memdesc:a955ad07241382211a8efdeaa2307443a"><td class="mdescLeft">&#160;</td><td class="mdescRight">Creates a <a class="el" href="structNMEA__msg.html">NMEA_msg</a> object and adds it to.data the received messages queue.  <a href="main_8cpp.html#a955ad07241382211a8efdeaa2307443a">More...</a><br /></td></tr>
 <tr class="separator:a955ad07241382211a8efdeaa2307443a"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -198,18 +249,37 @@ int32_t&#160;</td><td class="memItemRight" valign="bottom"><b>SendMsg</b> (wasm_
 <tr class="memitem:a106a265fd6a9f0387e494ba25c7acf60"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="main_8cpp.html#a106a265fd6a9f0387e494ba25c7acf60">uint8ArrayToCharrArray</a> (uint8_t(&amp;data_uint8_arr)[MAX_DATA_LENGTH_BTYES], unsigned char(&amp;data_char_arr)[MAX_DATA_LENGTH_BTYES])</td></tr>
 <tr class="memdesc:a106a265fd6a9f0387e494ba25c7acf60"><td class="mdescLeft">&#160;</td><td class="mdescRight">Fills a char array with values from a uint8_t array.  <a href="main_8cpp.html#a106a265fd6a9f0387e494ba25c7acf60">More...</a><br /></td></tr>
 <tr class="separator:a106a265fd6a9f0387e494ba25c7acf60"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a4e126984e064bcc2a55c7455c3e3f6c3"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="main_8cpp.html#a4e126984e064bcc2a55c7455c3e3f6c3">SendN2kMsg</a> (<a class="el" href="structNMEA__msg.html">NMEA_msg</a> msg)</td></tr>
-<tr class="memdesc:a4e126984e064bcc2a55c7455c3e3f6c3"><td class="mdescLeft">&#160;</td><td class="mdescRight">Sends a message.  <a href="main_8cpp.html#a4e126984e064bcc2a55c7455c3e3f6c3">More...</a><br /></td></tr>
-<tr class="separator:a4e126984e064bcc2a55c7455c3e3f6c3"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a2c91462acbe007052d72377d057c9db9"><td class="memItemLeft" align="right" valign="top"><a id="a2c91462acbe007052d72377d057c9db9"></a>
+void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="main_8cpp.html#a2c91462acbe007052d72377d057c9db9">configTConnectorModes</a> ()</td></tr>
+<tr class="memdesc:a2c91462acbe007052d72377d057c9db9"><td class="mdescLeft">&#160;</td><td class="mdescRight">Configures GPIO used to read mode settings from the Raspberry Pi. <br /></td></tr>
+<tr class="separator:a2c91462acbe007052d72377d057c9db9"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a2321a71b8cd45de5d7c933ed3769489f"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="main_8cpp.html#a2321a71b8cd45de5d7c933ed3769489f">get_mode_task</a> (void *pvParameters)</td></tr>
+<tr class="memdesc:a2321a71b8cd45de5d7c933ed3769489f"><td class="mdescLeft">&#160;</td><td class="mdescRight">Task to get the Controller Mode set by the Raspberry Pi.  <a href="main_8cpp.html#a2321a71b8cd45de5d7c933ed3769489f">More...</a><br /></td></tr>
+<tr class="separator:a2321a71b8cd45de5d7c933ed3769489f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a53c5e1e3ddb452add5caa1704a1eb8dd"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="main_8cpp.html#a53c5e1e3ddb452add5caa1704a1eb8dd">SendN2kMsg</a> (<a class="el" href="structNMEA__msg.html">NMEA_msg</a> msg, int controller_num)</td></tr>
+<tr class="memdesc:a53c5e1e3ddb452add5caa1704a1eb8dd"><td class="mdescLeft">&#160;</td><td class="mdescRight">Sends a message.  <a href="main_8cpp.html#a53c5e1e3ddb452add5caa1704a1eb8dd">More...</a><br /></td></tr>
+<tr class="separator:a53c5e1e3ddb452add5caa1704a1eb8dd"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:afe866e139af388e977898e984eef5408"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="main_8cpp.html#afe866e139af388e977898e984eef5408">GetStatus</a> (const char *TAG)</td></tr>
 <tr class="memdesc:afe866e139af388e977898e984eef5408"><td class="mdescLeft">&#160;</td><td class="mdescRight">Retrieves twai status and alerts.  <a href="main_8cpp.html#afe866e139af388e977898e984eef5408">More...</a><br /></td></tr>
 <tr class="separator:afe866e139af388e977898e984eef5408"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a5504d2805dc0ba6317d0a5c83f22186e"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="main_8cpp.html#a5504d2805dc0ba6317d0a5c83f22186e">N2K_receive_task</a> (void *pvParameters)</td></tr>
-<tr class="memdesc:a5504d2805dc0ba6317d0a5c83f22186e"><td class="mdescLeft">&#160;</td><td class="mdescRight">FreeRTOS task for receiving messages from CAN controller.  <a href="main_8cpp.html#a5504d2805dc0ba6317d0a5c83f22186e">More...</a><br /></td></tr>
-<tr class="separator:a5504d2805dc0ba6317d0a5c83f22186e"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a71c34574289ce06034467cc2b49826fa"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="main_8cpp.html#a71c34574289ce06034467cc2b49826fa">N2K_send_task</a> (void *pvParameters)</td></tr>
-<tr class="memdesc:a71c34574289ce06034467cc2b49826fa"><td class="mdescLeft">&#160;</td><td class="mdescRight">FreeRTOS task for processing and sending messages from CAN controller with NMEA2000 library.  <a href="main_8cpp.html#a71c34574289ce06034467cc2b49826fa">More...</a><br /></td></tr>
-<tr class="separator:a71c34574289ce06034467cc2b49826fa"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aae19191d9b7388789d8c1d0fe9b076eb"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="main_8cpp.html#aae19191d9b7388789d8c1d0fe9b076eb">C0_receive_task</a> (void *pvParameters)</td></tr>
+<tr class="memdesc:aae19191d9b7388789d8c1d0fe9b076eb"><td class="mdescLeft">&#160;</td><td class="mdescRight">FreeRTOS task for receiving messages from CAN controller.  <a href="main_8cpp.html#aae19191d9b7388789d8c1d0fe9b076eb">More...</a><br /></td></tr>
+<tr class="separator:aae19191d9b7388789d8c1d0fe9b076eb"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a6dda6c6786e180b103b80f422d0527df"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="main_8cpp.html#a6dda6c6786e180b103b80f422d0527df">C0_send_task</a> (void *pvParameters)</td></tr>
+<tr class="memdesc:a6dda6c6786e180b103b80f422d0527df"><td class="mdescLeft">&#160;</td><td class="mdescRight">FreeRTOS task for processing and sending messages from CAN controller with NMEA2000 library.  <a href="main_8cpp.html#a6dda6c6786e180b103b80f422d0527df">More...</a><br /></td></tr>
+<tr class="separator:a6dda6c6786e180b103b80f422d0527df"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a1887466dacb8e383d3d7735e5c744109"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="main_8cpp.html#a1887466dacb8e383d3d7735e5c744109">C1_receive_task</a> (void *pvParameters)</td></tr>
+<tr class="memdesc:a1887466dacb8e383d3d7735e5c744109"><td class="mdescLeft">&#160;</td><td class="mdescRight">FreeRTOS task for receiving messages from MCP CAN controller 1.  <a href="main_8cpp.html#a1887466dacb8e383d3d7735e5c744109">More...</a><br /></td></tr>
+<tr class="separator:a1887466dacb8e383d3d7735e5c744109"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a46ff4bd00136568c28cfa10a3eb55f04"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="main_8cpp.html#a46ff4bd00136568c28cfa10a3eb55f04">C1_send_task</a> (void *pvParameters)</td></tr>
+<tr class="memdesc:a46ff4bd00136568c28cfa10a3eb55f04"><td class="mdescLeft">&#160;</td><td class="mdescRight">FreeRTOS task for processing and sending messages from MCP CAN controller 1 with NMEA2000 library.  <a href="main_8cpp.html#a46ff4bd00136568c28cfa10a3eb55f04">More...</a><br /></td></tr>
+<tr class="separator:a46ff4bd00136568c28cfa10a3eb55f04"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ace97f4254911ca996ae4982062f52b65"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="main_8cpp.html#ace97f4254911ca996ae4982062f52b65">C2_receive_task</a> (void *pvParameters)</td></tr>
+<tr class="memdesc:ace97f4254911ca996ae4982062f52b65"><td class="mdescLeft">&#160;</td><td class="mdescRight">FreeRTOS task for receiving messages from MCP CAN controller 2.  <a href="main_8cpp.html#ace97f4254911ca996ae4982062f52b65">More...</a><br /></td></tr>
+<tr class="separator:ace97f4254911ca996ae4982062f52b65"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ae205e0b17f9241e98a6f53c6d1b5b520"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="main_8cpp.html#ae205e0b17f9241e98a6f53c6d1b5b520">C2_send_task</a> (void *pvParameters)</td></tr>
+<tr class="memdesc:ae205e0b17f9241e98a6f53c6d1b5b520"><td class="mdescLeft">&#160;</td><td class="mdescRight">FreeRTOS task for processing and sending messages from MCP CAN controller 2 with NMEA2000 library.  <a href="main_8cpp.html#ae205e0b17f9241e98a6f53c6d1b5b520">More...</a><br /></td></tr>
+<tr class="separator:ae205e0b17f9241e98a6f53c6d1b5b520"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a3a1ac44c68d18bdde17fd90634a71222"><td class="memItemLeft" align="right" valign="top">void *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="main_8cpp.html#a3a1ac44c68d18bdde17fd90634a71222">iwasm_main</a> (void *arg)</td></tr>
 <tr class="memdesc:a3a1ac44c68d18bdde17fd90634a71222"><td class="mdescLeft">&#160;</td><td class="mdescRight">WASM pthread to host wasm app.  <a href="main_8cpp.html#a3a1ac44c68d18bdde17fd90634a71222">More...</a><br /></td></tr>
 <tr class="separator:a3a1ac44c68d18bdde17fd90634a71222"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -219,18 +289,44 @@ int32_t&#160;</td><td class="memItemRight" valign="bottom"><b>SendMsg</b> (wasm_
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="var-members"></a>
 Variables</h2></td></tr>
-<tr class="memitem:a88033e9988be1a1712cc1a5cad30a386"><td class="memItemLeft" align="right" valign="top"><a id="a88033e9988be1a1712cc1a5cad30a386"></a>
-QueueHandle_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="main_8cpp.html#a88033e9988be1a1712cc1a5cad30a386">controller0_tx_queue</a></td></tr>
-<tr class="memdesc:a88033e9988be1a1712cc1a5cad30a386"><td class="mdescLeft">&#160;</td><td class="mdescRight">Queue that stores messages to be sent out on controller 0. <br /></td></tr>
-<tr class="separator:a88033e9988be1a1712cc1a5cad30a386"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aefa2b5e3997c0cbb76598cdb17f2a352"><td class="memItemLeft" align="right" valign="top">spi_device_handle_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="main_8cpp.html#aefa2b5e3997c0cbb76598cdb17f2a352">spi1</a></td></tr>
+<tr class="memdesc:aefa2b5e3997c0cbb76598cdb17f2a352"><td class="mdescLeft">&#160;</td><td class="mdescRight">MCP controller 1 spi handle.  <a href="main_8cpp.html#aefa2b5e3997c0cbb76598cdb17f2a352">More...</a><br /></td></tr>
+<tr class="separator:aefa2b5e3997c0cbb76598cdb17f2a352"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aeaa59286a465534fe1b819f7b15dbcb5"><td class="memItemLeft" align="right" valign="top">spi_device_handle_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="main_8cpp.html#aeaa59286a465534fe1b819f7b15dbcb5">spi2</a></td></tr>
+<tr class="memdesc:aeaa59286a465534fe1b819f7b15dbcb5"><td class="mdescLeft">&#160;</td><td class="mdescRight">MCP controller 2 spi handle.  <a href="main_8cpp.html#aeaa59286a465534fe1b819f7b15dbcb5">More...</a><br /></td></tr>
+<tr class="separator:aeaa59286a465534fe1b819f7b15dbcb5"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a0826455c8e9b48e105f843a49eabafa9"><td class="memItemLeft" align="right" valign="top"><a id="a0826455c8e9b48e105f843a49eabafa9"></a>
+QueueHandle_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="main_8cpp.html#a0826455c8e9b48e105f843a49eabafa9">C0_tx_queue</a></td></tr>
+<tr class="memdesc:a0826455c8e9b48e105f843a49eabafa9"><td class="mdescLeft">&#160;</td><td class="mdescRight">Queue that stores messages to be sent out on controller 0. <br /></td></tr>
+<tr class="separator:a0826455c8e9b48e105f843a49eabafa9"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:af8c778847bd26d291478c5fb66b49c7c"><td class="memItemLeft" align="right" valign="top"><a id="af8c778847bd26d291478c5fb66b49c7c"></a>
+QueueHandle_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="main_8cpp.html#af8c778847bd26d291478c5fb66b49c7c">C1_tx_queue</a></td></tr>
+<tr class="memdesc:af8c778847bd26d291478c5fb66b49c7c"><td class="mdescLeft">&#160;</td><td class="mdescRight">Queue that stores messages to be sent out on controller 1. <br /></td></tr>
+<tr class="separator:af8c778847bd26d291478c5fb66b49c7c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ac6c64c96b485a112e1c1e05018323206"><td class="memItemLeft" align="right" valign="top"><a id="ac6c64c96b485a112e1c1e05018323206"></a>
+QueueHandle_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="main_8cpp.html#ac6c64c96b485a112e1c1e05018323206">C2_tx_queue</a></td></tr>
+<tr class="memdesc:ac6c64c96b485a112e1c1e05018323206"><td class="mdescLeft">&#160;</td><td class="mdescRight">Queue that stores messages to be sent out on controller 2. <br /></td></tr>
+<tr class="separator:ac6c64c96b485a112e1c1e05018323206"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a11b6808d4d3da250b22c4e713bfdb52d"><td class="memItemLeft" align="right" valign="top"><a id="a11b6808d4d3da250b22c4e713bfdb52d"></a>
 QueueHandle_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="main_8cpp.html#a11b6808d4d3da250b22c4e713bfdb52d">rx_queue</a></td></tr>
 <tr class="memdesc:a11b6808d4d3da250b22c4e713bfdb52d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Queue that stores all messages received on all controllers. <br /></td></tr>
 <tr class="separator:a11b6808d4d3da250b22c4e713bfdb52d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:abb6073d41bbb1f8aad8c0f83e527ab5d"><td class="memItemLeft" align="right" valign="top"><a id="abb6073d41bbb1f8aad8c0f83e527ab5d"></a>
+SemaphoreHandle_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="main_8cpp.html#abb6073d41bbb1f8aad8c0f83e527ab5d">x_sem_mcp1</a></td></tr>
+<tr class="memdesc:abb6073d41bbb1f8aad8c0f83e527ab5d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Semaphore handle for MCP1. <br /></td></tr>
+<tr class="separator:abb6073d41bbb1f8aad8c0f83e527ab5d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a15686133cf6b9dacc4b5ae1e28c7d138"><td class="memItemLeft" align="right" valign="top"><a id="a15686133cf6b9dacc4b5ae1e28c7d138"></a>
+SemaphoreHandle_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="main_8cpp.html#a15686133cf6b9dacc4b5ae1e28c7d138">x_sem_mcp2</a></td></tr>
+<tr class="memdesc:a15686133cf6b9dacc4b5ae1e28c7d138"><td class="mdescLeft">&#160;</td><td class="mdescRight">Semaphore handle for MCP2. <br /></td></tr>
+<tr class="separator:a15686133cf6b9dacc4b5ae1e28c7d138"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a48df899df614d98285854d93c794813b"><td class="memItemLeft" align="right" valign="top"><a id="a48df899df614d98285854d93c794813b"></a>
 char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="main_8cpp.html#a48df899df614d98285854d93c794813b">wasm_buffer</a> = NULL</td></tr>
 <tr class="memdesc:a48df899df614d98285854d93c794813b"><td class="mdescLeft">&#160;</td><td class="mdescRight">buffer allocated for wasm app, used to hold received messages so app can access them <br /></td></tr>
 <tr class="separator:a48df899df614d98285854d93c794813b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:afdcdd0462feebfa28feb32f89015f720"><td class="memItemLeft" align="right" valign="top"><a id="afdcdd0462feebfa28feb32f89015f720"></a>
+char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="main_8cpp.html#afdcdd0462feebfa28feb32f89015f720">wasm_mode_buffer</a> = NULL</td></tr>
+<tr class="memdesc:afdcdd0462feebfa28feb32f89015f720"><td class="mdescLeft">&#160;</td><td class="mdescRight">buffer allocated for wasm app, used to hold current t connector mode set by Raspberry Pi <br /></td></tr>
+<tr class="separator:afdcdd0462feebfa28feb32f89015f720"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ae4ab25cbe521c019efe65e33cbd24789"><td class="memItemLeft" align="right" valign="top"><a id="ae4ab25cbe521c019efe65e33cbd24789"></a>
 int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="main_8cpp.html#ae4ab25cbe521c019efe65e33cbd24789">read_msg_count</a> = 0</td></tr>
 <tr class="memdesc:ae4ab25cbe521c019efe65e33cbd24789"><td class="mdescLeft">&#160;</td><td class="mdescRight">Used to track messages read. <br /></td></tr>
@@ -239,16 +335,32 @@ int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="main_
 int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="main_8cpp.html#a8fd7e8735633201282654440183b0fee">send_msg_count</a> = 0</td></tr>
 <tr class="memdesc:a8fd7e8735633201282654440183b0fee"><td class="mdescLeft">&#160;</td><td class="mdescRight">Used to track messages sent. <br /></td></tr>
 <tr class="separator:a8fd7e8735633201282654440183b0fee"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a187986ba8a1d16f9e9b906f79795cc10"><td class="memItemLeft" align="right" valign="top"><a id="a187986ba8a1d16f9e9b906f79795cc10"></a>
+std::string&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="main_8cpp.html#a187986ba8a1d16f9e9b906f79795cc10">tc_mode</a> = &quot;1&quot;</td></tr>
+<tr class="memdesc:a187986ba8a1d16f9e9b906f79795cc10"><td class="mdescLeft">&#160;</td><td class="mdescRight">Contains the T Connector mode-&gt; 0 - OFF, 1 - PASSIVE, 2 - GPS_ATTACK, 3 - TBD. <br /></td></tr>
+<tr class="separator:a187986ba8a1d16f9e9b906f79795cc10"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aeb8f55ef0d019e0d245fb1985dbe2a2a"><td class="memItemLeft" align="right" valign="top"><a id="aeb8f55ef0d019e0d245fb1985dbe2a2a"></a>
 uint32_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="main_8cpp.html#aeb8f55ef0d019e0d245fb1985dbe2a2a">alerts_to_enable</a> = TWAI_ALERT_RX_DATA | TWAI_ALERT_TX_FAILED | TWAI_ALERT_RX_QUEUE_FULL</td></tr>
 <tr class="memdesc:aeb8f55ef0d019e0d245fb1985dbe2a2a"><td class="mdescLeft">&#160;</td><td class="mdescRight">Sets which alerts to enable for TWAI controller. <br /></td></tr>
 <tr class="separator:aeb8f55ef0d019e0d245fb1985dbe2a2a"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a3c937c1adf8ddbc8393c5c835456b0a4"><td class="memItemLeft" align="right" valign="top"><a id="a3c937c1adf8ddbc8393c5c835456b0a4"></a>
-int&#160;</td><td class="memItemRight" valign="bottom"><b>rx_task_count</b> = 0</td></tr>
-<tr class="separator:a3c937c1adf8ddbc8393c5c835456b0a4"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a09d5aae9476513386bce59e21f4747bd"><td class="memItemLeft" align="right" valign="top"><a id="a09d5aae9476513386bce59e21f4747bd"></a>
-int&#160;</td><td class="memItemRight" valign="bottom"><b>tx_task_count</b> = 0</td></tr>
-<tr class="separator:a09d5aae9476513386bce59e21f4747bd"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a6f4fb0742ede11f0b6c403af47f56044"><td class="memItemLeft" align="right" valign="top"><a id="a6f4fb0742ede11f0b6c403af47f56044"></a>
+int&#160;</td><td class="memItemRight" valign="bottom"><b>C0_rx_task_count</b> = 0</td></tr>
+<tr class="separator:a6f4fb0742ede11f0b6c403af47f56044"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:af2eae8e8ceebfab05932c4d50bfe76fc"><td class="memItemLeft" align="right" valign="top"><a id="af2eae8e8ceebfab05932c4d50bfe76fc"></a>
+int&#160;</td><td class="memItemRight" valign="bottom"><b>C0_tx_task_count</b> = 0</td></tr>
+<tr class="separator:af2eae8e8ceebfab05932c4d50bfe76fc"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a204f58c6e8a450d1dd9261394155dd6e"><td class="memItemLeft" align="right" valign="top"><a id="a204f58c6e8a450d1dd9261394155dd6e"></a>
+int&#160;</td><td class="memItemRight" valign="bottom"><b>C1_rx_task_count</b> = 0</td></tr>
+<tr class="separator:a204f58c6e8a450d1dd9261394155dd6e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aeb43d71f8a3f3a327511d78cbc80b232"><td class="memItemLeft" align="right" valign="top"><a id="aeb43d71f8a3f3a327511d78cbc80b232"></a>
+int&#160;</td><td class="memItemRight" valign="bottom"><b>C1_tx_task_count</b> = 0</td></tr>
+<tr class="separator:aeb43d71f8a3f3a327511d78cbc80b232"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ae1fa84d72ff82960779a5f3b6a400f9f"><td class="memItemLeft" align="right" valign="top"><a id="ae1fa84d72ff82960779a5f3b6a400f9f"></a>
+int&#160;</td><td class="memItemRight" valign="bottom"><b>C2_rx_task_count</b> = 0</td></tr>
+<tr class="separator:ae1fa84d72ff82960779a5f3b6a400f9f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a7d4faf47ccffd605590e4bdb135aad74"><td class="memItemLeft" align="right" valign="top"><a id="a7d4faf47ccffd605590e4bdb135aad74"></a>
+int&#160;</td><td class="memItemRight" valign="bottom"><b>C2_tx_task_count</b> = 0</td></tr>
+<tr class="separator:a7d4faf47ccffd605590e4bdb135aad74"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a8ddaf2882653dbb9f9c8a2299486585f"><td class="memItemLeft" align="right" valign="top"><a id="a8ddaf2882653dbb9f9c8a2299486585f"></a>
 int&#160;</td><td class="memItemRight" valign="bottom"><b>wasm_pthread_count</b> = 0</td></tr>
 <tr class="separator:a8ddaf2882653dbb9f9c8a2299486585f"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -283,8 +395,209 @@ double&#160;</td><td class="memItemRight" valign="bottom"><b>wasm_main_duration<
 
 <p>Creates a FreeRTOS task for sending and receiving to and from CAN Controller and creates a pthread to run WASM app. </p>
 <p>In ESP-IDF, a pthread is just a wrapper on FreeRTOS </p>
+<ul>
+<li>Controller 1 Receiving task *&zwj;/</li>
+<li>Controller 2 Receiving task *&zwj;/</li>
+</ul>
 
-<p class="definition">Definition at line <a class="el" href="main_8cpp_source.html#l00731">731</a> of file <a class="el" href="main_8cpp_source.html">main.cpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="main_8cpp_source.html#l01107">1107</a> of file <a class="el" href="main_8cpp_source.html">main.cpp</a>.</p>
+
+</div>
+</div>
+<a id="aae19191d9b7388789d8c1d0fe9b076eb"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aae19191d9b7388789d8c1d0fe9b076eb">&#9670;&nbsp;</a></span>C0_receive_task()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void C0_receive_task </td>
+          <td>(</td>
+          <td class="paramtype">void *&#160;</td>
+          <td class="paramname"><em>pvParameters</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>FreeRTOS task for receiving messages from CAN controller. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">pvParameters</td><td>NMEA2000 Library is designed so that message receiving and sending is handled within the same task. In the NMEA2000_ESP32 library, this is made possible by letting the twai rx interrupt handle receiving CAN frames. In this library, the receiving is separated from the processing and sending of messages. This is done because I was unable to trigger recieving a CAN frame from the twai rx interrupt, so CAN_read_frame() must be called explicitly here. </td></tr>
+  </table>
+  </dd>
+</dl>
+
+<p class="definition">Definition at line <a class="el" href="main_8cpp_source.html#l00613">613</a> of file <a class="el" href="main_8cpp_source.html">main.cpp</a>.</p>
+
+</div>
+</div>
+<a id="a6dda6c6786e180b103b80f422d0527df"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a6dda6c6786e180b103b80f422d0527df">&#9670;&nbsp;</a></span>C0_send_task()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void C0_send_task </td>
+          <td>(</td>
+          <td class="paramtype">void *&#160;</td>
+          <td class="paramname"><em>pvParameters</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>FreeRTOS task for processing and sending messages from CAN controller with NMEA2000 library. </p>
+<p>Tries to receive a message from the controller 0 tx queue, and sends it if available</p>
+<dl class="todo"><dt><b><a class="el" href="todo.html#_todo000004">Todo:</a></b></dt><dd>frame buffer should be 32 - see if this works </dd></dl>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">pvParameters</td><td></td></tr>
+  </table>
+  </dd>
+</dl>
+
+<p class="definition">Definition at line <a class="el" href="main_8cpp_source.html#l00641">641</a> of file <a class="el" href="main_8cpp_source.html">main.cpp</a>.</p>
+
+</div>
+</div>
+<a id="a1887466dacb8e383d3d7735e5c744109"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a1887466dacb8e383d3d7735e5c744109">&#9670;&nbsp;</a></span>C1_receive_task()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void C1_receive_task </td>
+          <td>(</td>
+          <td class="paramtype">void *&#160;</td>
+          <td class="paramname"><em>pvParameters</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>FreeRTOS task for receiving messages from MCP CAN controller 1. </p>
+<p>Sets up a NMEA2000 Object with the MCP class. Initializes the SPI bus and adds a device to the bus. Semaphore is used so that send and receive tasks don't access the same device at the same time.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">pvParameters</td><td></td></tr>
+  </table>
+  </dd>
+</dl>
+
+<p class="definition">Definition at line <a class="el" href="main_8cpp_source.html#l00675">675</a> of file <a class="el" href="main_8cpp_source.html">main.cpp</a>.</p>
+
+</div>
+</div>
+<a id="a46ff4bd00136568c28cfa10a3eb55f04"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a46ff4bd00136568c28cfa10a3eb55f04">&#9670;&nbsp;</a></span>C1_send_task()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void C1_send_task </td>
+          <td>(</td>
+          <td class="paramtype">void *&#160;</td>
+          <td class="paramname"><em>pvParameters</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>FreeRTOS task for processing and sending messages from MCP CAN controller 1 with NMEA2000 library. </p>
+<p>Tries to receive a message from the controller 1 tx queue, and sends it if available Semaphore is used so that send and receive tasks don't access the same device at the same time.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">pvParameters</td><td></td></tr>
+  </table>
+  </dd>
+</dl>
+
+<p class="definition">Definition at line <a class="el" href="main_8cpp_source.html#l00711">711</a> of file <a class="el" href="main_8cpp_source.html">main.cpp</a>.</p>
+
+</div>
+</div>
+<a id="ace97f4254911ca996ae4982062f52b65"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ace97f4254911ca996ae4982062f52b65">&#9670;&nbsp;</a></span>C2_receive_task()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void C2_receive_task </td>
+          <td>(</td>
+          <td class="paramtype">void *&#160;</td>
+          <td class="paramname"><em>pvParameters</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>FreeRTOS task for receiving messages from MCP CAN controller 2. </p>
+<p>Sets up a NMEA2000 Object with the MCP class. Adds a device to the bus. It does not need to initialize the SPI bus because the MCP1 recieve task has already done that. Semaphore is used so that send and receive tasks don't access the same device at the same time.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">pvParameters</td><td></td></tr>
+  </table>
+  </dd>
+</dl>
+
+<p class="definition">Definition at line <a class="el" href="main_8cpp_source.html#l00753">753</a> of file <a class="el" href="main_8cpp_source.html">main.cpp</a>.</p>
+
+</div>
+</div>
+<a id="ae205e0b17f9241e98a6f53c6d1b5b520"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ae205e0b17f9241e98a6f53c6d1b5b520">&#9670;&nbsp;</a></span>C2_send_task()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void C2_send_task </td>
+          <td>(</td>
+          <td class="paramtype">void *&#160;</td>
+          <td class="paramname"><em>pvParameters</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>FreeRTOS task for processing and sending messages from MCP CAN controller 2 with NMEA2000 library. </p>
+<p>Tries to receive a message from the controller 2 tx queue, and sends it if available Semaphore is used so that send and receive tasks don't access the same device at the same time.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">pvParameters</td><td></td></tr>
+  </table>
+  </dd>
+</dl>
+
+<p class="definition">Definition at line <a class="el" href="main_8cpp_source.html#l00789">789</a> of file <a class="el" href="main_8cpp_source.html">main.cpp</a>.</p>
+
+</div>
+</div>
+<a id="a2321a71b8cd45de5d7c933ed3769489f"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a2321a71b8cd45de5d7c933ed3769489f">&#9670;&nbsp;</a></span>get_mode_task()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void get_mode_task </td>
+          <td>(</td>
+          <td class="paramtype">void *&#160;</td>
+          <td class="paramname"><em>pvParameters</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Task to get the Controller Mode set by the Raspberry Pi. </p>
+<p>00 - Off 01 - Passive 10 - GPS Opposite Direction Attack 11 - GPS Translation Attack </p>
+
+<p class="definition">Definition at line <a class="el" href="main_8cpp_source.html#l00351">351</a> of file <a class="el" href="main_8cpp_source.html">main.cpp</a>.</p>
 
 </div>
 </div>
@@ -313,7 +626,7 @@ double&#160;</td><td class="memItemRight" valign="bottom"><b>wasm_main_duration<
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="main_8cpp_source.html#l00380">380</a> of file <a class="el" href="main_8cpp_source.html">main.cpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="main_8cpp_source.html#l00543">543</a> of file <a class="el" href="main_8cpp_source.html">main.cpp</a>.</p>
 
 </div>
 </div>
@@ -343,7 +656,7 @@ double&#160;</td><td class="memItemRight" valign="bottom"><b>wasm_main_duration<
 </dl>
 <dl class="section return"><dt>Returns</dt><dd>void </dd></dl>
 
-<p class="definition">Definition at line <a class="el" href="main_8cpp_source.html#l00495">495</a> of file <a class="el" href="main_8cpp_source.html">main.cpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="main_8cpp_source.html#l00824">824</a> of file <a class="el" href="main_8cpp_source.html">main.cpp</a>.</p>
 
 </div>
 </div>
@@ -372,96 +685,7 @@ double&#160;</td><td class="memItemRight" valign="bottom"><b>wasm_main_duration<
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="main_8cpp_source.html#l00556">556</a> of file <a class="el" href="main_8cpp_source.html">main.cpp</a>.</p>
-
-</div>
-</div>
-<a id="a5504d2805dc0ba6317d0a5c83f22186e"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a5504d2805dc0ba6317d0a5c83f22186e">&#9670;&nbsp;</a></span>N2K_receive_task()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void N2K_receive_task </td>
-          <td>(</td>
-          <td class="paramtype">void *&#160;</td>
-          <td class="paramname"><em>pvParameters</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>FreeRTOS task for receiving messages from CAN controller. </p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramname">pvParameters</td><td>NMEA2000 Library is designed so that message receiving and sending is handled within the same task. In the NMEA2000_ESP32 library, this is made possible by letting the twai rx interrupt handle receiving CAN frames. In this library, the receiving is separated from the processing and sending of messages. This is done because I was unable to trigger recieving a CAN frame from the twai rx interrupt, so CAN_read_frame() must be called explicitly here. </td></tr>
-  </table>
-  </dd>
-</dl>
-
-<p class="definition">Definition at line <a class="el" href="main_8cpp_source.html#l00438">438</a> of file <a class="el" href="main_8cpp_source.html">main.cpp</a>.</p>
-
-</div>
-</div>
-<a id="a71c34574289ce06034467cc2b49826fa"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a71c34574289ce06034467cc2b49826fa">&#9670;&nbsp;</a></span>N2K_send_task()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void N2K_send_task </td>
-          <td>(</td>
-          <td class="paramtype">void *&#160;</td>
-          <td class="paramname"><em>pvParameters</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>FreeRTOS task for processing and sending messages from CAN controller with NMEA2000 library. </p>
-<p>Initializes NMEA2000 Object, then sends messages in loop.</p>
-<dl class="todo"><dt><b><a class="el" href="todo.html#_todo000004">Todo:</a></b></dt><dd>frame buffer should be 32 - see if this works </dd></dl>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramname">pvParameters</td><td></td></tr>
-  </table>
-  </dd>
-</dl>
-
-<p class="definition">Definition at line <a class="el" href="main_8cpp_source.html#l00469">469</a> of file <a class="el" href="main_8cpp_source.html">main.cpp</a>.</p>
-
-</div>
-</div>
-<a id="a69c2759945fc6b51ee00ca0d06d7ca9b"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a69c2759945fc6b51ee00ca0d06d7ca9b">&#9670;&nbsp;</a></span>NMEA2000()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">tNMEA2000_esp32c6 NMEA2000 </td>
-          <td>(</td>
-          <td class="paramtype">GPIO_NUM_4&#160;</td>
-          <td class="paramname">, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">GPIO_NUM_5&#160;</td>
-          <td class="paramname">&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Creates a NMEA2000 Object. </p>
-<p>NMEA2000(TX_PIN, RX_PIN) </p>
+<p class="definition">Definition at line <a class="el" href="main_8cpp_source.html#l00887">887</a> of file <a class="el" href="main_8cpp_source.html">main.cpp</a>.</p>
 
 </div>
 </div>
@@ -491,7 +715,7 @@ double&#160;</td><td class="memItemRight" valign="bottom"><b>wasm_main_duration<
 </dl>
 <dl class="section return"><dt>Returns</dt><dd>std::string representing the message </dd></dl>
 
-<p class="definition">Definition at line <a class="el" href="main_8cpp_source.html#l00198">198</a> of file <a class="el" href="main_8cpp_source.html">main.cpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="main_8cpp_source.html#l00272">272</a> of file <a class="el" href="main_8cpp_source.html">main.cpp</a>.</p>
 
 </div>
 </div>
@@ -538,7 +762,7 @@ double&#160;</td><td class="memItemRight" valign="bottom"><b>wasm_main_duration<
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="main_8cpp_source.html#l00135">135</a> of file <a class="el" href="main_8cpp_source.html">main.cpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="main_8cpp_source.html#l00189">189</a> of file <a class="el" href="main_8cpp_source.html">main.cpp</a>.</p>
 
 </div>
 </div>
@@ -585,12 +809,12 @@ double&#160;</td><td class="memItemRight" valign="bottom"><b>wasm_main_duration<
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="main_8cpp_source.html#l00117">117</a> of file <a class="el" href="main_8cpp_source.html">main.cpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="main_8cpp_source.html#l00171">171</a> of file <a class="el" href="main_8cpp_source.html">main.cpp</a>.</p>
 
 </div>
 </div>
-<a id="a4e126984e064bcc2a55c7455c3e3f6c3"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a4e126984e064bcc2a55c7455c3e3f6c3">&#9670;&nbsp;</a></span>SendN2kMsg()</h2>
+<a id="a53c5e1e3ddb452add5caa1704a1eb8dd"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a53c5e1e3ddb452add5caa1704a1eb8dd">&#9670;&nbsp;</a></span>SendN2kMsg()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -599,18 +823,29 @@ double&#160;</td><td class="memItemRight" valign="bottom"><b>wasm_main_duration<
           <td class="memname">bool SendN2kMsg </td>
           <td>(</td>
           <td class="paramtype"><a class="el" href="structNMEA__msg.html">NMEA_msg</a>&#160;</td>
-          <td class="paramname"><em>msg</em></td><td>)</td>
+          <td class="paramname"><em>msg</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
           <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>controller_num</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
         </tr>
       </table>
 </div><div class="memdoc">
 
 <p>Sends a message. </p>
+<p>Converts NMEA-msg to the NMEA2000 Library N2kMsg format and sends the message</p>
 <dl class="todo"><dt><b><a class="el" href="todo.html#_todo000003">Todo:</a></b></dt><dd><p class="startdd">update time to take time from message </p>
 <p class="enddd">update for multiple controllers</p>
 </dd></dl>
 
-<p class="definition">Definition at line <a class="el" href="main_8cpp_source.html#l00236">236</a> of file <a class="el" href="main_8cpp_source.html">main.cpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="main_8cpp_source.html#l00376">376</a> of file <a class="el" href="main_8cpp_source.html">main.cpp</a>.</p>
 
 </div>
 </div>
@@ -649,7 +884,46 @@ double&#160;</td><td class="memItemRight" valign="bottom"><b>wasm_main_duration<
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="main_8cpp_source.html#l00222">222</a> of file <a class="el" href="main_8cpp_source.html">main.cpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="main_8cpp_source.html#l00296">296</a> of file <a class="el" href="main_8cpp_source.html">main.cpp</a>.</p>
+
+</div>
+</div>
+<h2 class="groupheader">Variable Documentation</h2>
+<a id="aefa2b5e3997c0cbb76598cdb17f2a352"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aefa2b5e3997c0cbb76598cdb17f2a352">&#9670;&nbsp;</a></span>spi1</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">tNMEA2000_mcp C1 &amp; spi1</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>MCP controller 1 spi handle. </p>
+<p>Controller 1 -&gt; MCP, (spi_handle, CS_PIN, mcp_clk_freq, INT_PIN, _rx_frame_buf_size) </p>
+
+<p class="definition">Definition at line <a class="el" href="main_8cpp_source.html#l00090">90</a> of file <a class="el" href="main_8cpp_source.html">main.cpp</a>.</p>
+
+</div>
+</div>
+<a id="aeaa59286a465534fe1b819f7b15dbcb5"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aeaa59286a465534fe1b819f7b15dbcb5">&#9670;&nbsp;</a></span>spi2</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">tNMEA2000_mcp C2 &amp; spi2</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>MCP controller 2 spi handle. </p>
+<p>Controller 2 -&gt; MCP, (spi_handle, CS_PIN, mcp_clk_freq, INT_PIN, _rx_frame_buf_size) </p>
+
+<p class="definition">Definition at line <a class="el" href="main_8cpp_source.html#l00091">91</a> of file <a class="el" href="main_8cpp_source.html">main.cpp</a>.</p>
 
 </div>
 </div>
