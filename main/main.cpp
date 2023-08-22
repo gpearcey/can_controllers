@@ -344,8 +344,8 @@ void configTConnectorModes()
  * 
  * 00 - Off
  * 01 - Passive
- * 10 - GPS Attack
- * 11 - Extra (TBD)
+ * 10 - GPS Opposite Direction Attack
+ * 11 - GPS Translation Attack
  * 
 */
 void get_mode_task(void *pvParameters)
@@ -1034,7 +1034,7 @@ void * iwasm_main(void *arg)
                wasm_mode_buffer);
     }
     else {
-        ESP_LOGW(TAG_WASM,"call wasm function link_msg_buffer failed. error: %s\n",
+        ESP_LOGW(TAG_WASM,"call wasm function link_mode_buffer failed. error: %s\n",
                wasm_runtime_get_exception(wasm_module_inst));
         goto fail;
     }
